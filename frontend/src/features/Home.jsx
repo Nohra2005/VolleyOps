@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './Home.css';
 
-// Imports
 import logo from '../assets/logo.png';
 import iconScheduling from '../assets/icon-scheduling.png';
 import iconTeam from '../assets/icon-team.png';
@@ -9,20 +9,21 @@ import iconCommunication from '../assets/icon-communication.png';
 import iconStats from '../assets/icon-stats.png';
 import iconIboard from '../assets/icon-iboard.png';
 
-// Your downloaded images (with text baked in)
 import heroSlide1 from '../assets/hero-bg-1.png'; 
 import heroSlide2 from '../assets/hero-bg-2.png'; 
 
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const navigate = useNavigate();
+
   const heroSlides = [heroSlide1, heroSlide2];
 
   const features = [
-    { name: 'Scheduling', icon: iconScheduling },
-    { name: 'Team Management', icon: iconTeam },
-    { name: 'Communication', icon: iconCommunication },
-    { name: 'Athlete Stats', icon: iconStats },
-    { name: 'Coach iBoard', icon: iconIboard },
+    { name: 'Scheduling', icon: iconScheduling, path: '/scheduling' },
+    { name: 'Team Management', icon: iconTeam, path: '/team-management' },
+    { name: 'Communication', icon: iconCommunication, path: '/communication' },
+    { name: 'Athlete Stats', icon: iconStats, path: '/stats' },
+    { name: 'Coach iBoard', icon: iconIboard, path: '/iboard' },
   ];
 
   const nextSlide = useCallback(() => {
@@ -40,7 +41,6 @@ export default function Home() {
 
   return (
     <div className="home-container">
-      {/* Top navbar */}
       <nav className="navbar">
         <div className="navbar-safe-zone">
           <div className="logo-container">
@@ -54,7 +54,6 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero section */}
       <section className="hero-section">
         {heroSlides.map((slide, index) => (
           <div key={index} className={`hero-slide ${index === currentSlide ? 'active' : ''}`}>
@@ -62,16 +61,13 @@ export default function Home() {
           </div>
         ))}
 
-        {/* Controls container to keep arrows neatly centered on ultrawide monitors */}
         <div className="hero-controls-wrapper">
-          <button className="carousel-arrow left" onClick={prevSlide} aria-label="Previous Slide">
+          <button className="carousel-arrow left" onClick={prevSlide}>
             &#10094;
           </button>
-
-          <button className="carousel-arrow right" onClick={nextSlide} aria-label="Next Slide">
+          <button className="carousel-arrow right" onClick={nextSlide}>
             &#10095;
           </button>
-          
           <div className="carousel-dots">
             {heroSlides.map((_, index) => (
               <button 
@@ -84,11 +80,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features section */}
       <section className="features-section">
         <div className="features-grid">
           {features.map((feature, index) => (
-            <div className="feature-card" key={index}>
+            <div 
+              className="feature-card" 
+              key={index}
+              onClick={() => navigate(feature.path)}
+            >
               <img src={feature.icon} alt={feature.name} className="feature-image" />
             </div>
           ))}

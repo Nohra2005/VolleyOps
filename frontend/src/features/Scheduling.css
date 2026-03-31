@@ -1,0 +1,205 @@
+* { box-sizing: border-box; }
+body, html { margin: 0; padding: 0; width: 100%; height: 100%; }
+
+.scheduling-container {
+  display: flex; height: 100vh; width: 100vw;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #ffffff; color: #1e293b;
+}
+
+/* ─── SIDEBAR ─────────────────────────────────────────────────────────── */
+.sidebar {
+  width: 300px; border-right: 1px solid #f1f5f9; padding: 24px;
+  display: flex; flex-direction: column; flex-shrink: 0; background-color: #ffffff;
+}
+.sidebar-title {
+  color: #6b7bb8; font-size: 26px; font-weight: 800;
+  letter-spacing: 1.5px; margin: 0 0 32px 0; text-transform: uppercase;
+}
+.create-booking-btn {
+  background-color: #6b7bb8; color: white; border: none; border-radius: 12px;
+  padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-bottom: 40px; box-shadow: 0 4px 12px rgba(107, 123, 184, 0.2); transition: all 0.2s;
+}
+.create-booking-btn:hover { background-color: #5a679d; transform: translateY(-1px); }
+
+.court-filters {
+  display: flex; gap: 8px; margin-bottom: 40px;
+  padding-bottom: 30px; border-bottom: 1px solid #f1f5f9;
+}
+.court-btn {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px;
+  padding: 8px 14px; font-size: 12px; font-weight: 600;
+  cursor: pointer; color: #64748b; transition: all 0.2s;
+}
+.court-btn.active {
+  background-color: #ffffff; border-color: #6b7bb8;
+  color: #6b7bb8; box-shadow: 0 0 0 1px #6b7bb8;
+}
+
+/* Mini calendar */
+.mini-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.mini-header h3 { font-size: 15px; font-weight: 700; color: #334155; margin: 0; }
+.mini-arrows { display: flex; gap: 4px; }
+.mini-arrows span { cursor: pointer; color: #94a3b8; font-size: 14px; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
+.mini-arrows span:hover { background: #f1f5f9; color: #6b7bb8; }
+
+.mini-days-header { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 4px; }
+.mini-days-header span { font-size: 11px; font-weight: 700; color: #94a3b8; height: 28px; display: flex; align-items: center; justify-content: center; }
+
+.mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; gap: 4px; }
+.mini-grid span { height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; transition: 0.2s; }
+.mini-grid span:hover { background: #f1f5f9; }
+.mini-grid .active-day { background-color: #6b7bb8; color: white; font-weight: 700; }
+.mini-grid .fade { color: #cbd5e1; }
+
+/* ─── MAIN CALENDAR ───────────────────────────────────────────────────── */
+.calendar-main { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+.calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 40px; }
+.header-left { display: flex; align-items: center; gap: 16px; }
+.header-left h2 { margin: 0; font-size: 22px; font-weight: 800; color: #1e293b; }
+.week-nav { display: flex; gap: 6px; background: #f1f5f9; border-radius: 10px; padding: 4px; }
+.week-nav span { padding: 4px 10px; cursor: pointer; color: #64748b; font-size: 18px; border-radius: 6px; transition: 0.2s; }
+.week-nav span:hover { background: #ffffff; color: #6b7bb8; }
+.back-btn { background: #ffffff; border: 1px solid #e2e8f0; padding: 10px 22px; border-radius: 30px; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.back-btn:hover { background: #f8fafc; }
+
+/* ─── GRID HEADER ─────────────────────────────────────────────────────── */
+.calendar-grid-header { display: flex; border-bottom: 1px solid #f1f5f9; }
+
+/*
+ * time-spacer MUST equal .time-labels width so day headers sit above
+ * their respective day columns.
+ */
+.time-spacer { width: 72px; flex-shrink: 0; }
+
+.day-column-header { flex: 1; text-align: center; padding: 18px 0; border-left: 1px solid #f1f5f9; }
+.day-name  { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block; }
+.day-date  { font-size: 22px; font-weight: 800; color: #1e293b; display: block; }
+.day-column-header.active-col .day-name { color: #6b7bb8; }
+.day-column-header.active-col .day-date {
+  background-color: #6b7bb8; color: #ffffff; border-radius: 50%;
+  width: 40px; height: 40px; display: flex;
+  align-items: center; justify-content: center; margin: 4px auto 0;
+}
+
+/* ─── CALENDAR BODY ───────────────────────────────────────────────────── */
+/*
+ * padding-top: 8px gives the "8 AM" label enough room to be fully visible.
+ * Without it the first label would be half-clipped at the scroll boundary.
+ * All other elements (time-labels AND days-grid) share this same offset so
+ * label ↔ grid-line ↔ event-card all start from the same baseline.
+ */
+.calendar-body { display: flex; flex-grow: 1; overflow-y: auto; padding-top: 8px; }
+
+/* ─── TIME LABELS ─────────────────────────────────────────────────────── */
+.time-labels { width: 72px; flex-shrink: 0; }
+
+/*
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * THE ALIGNMENT FIX
+ *
+ * Old approach (broken): flexbox padding-top pushed text inside the cell
+ * → label appeared between two lines instead of AT a line.
+ *
+ * New approach: each .time-slot-label is a 100 px tall positioning block.
+ * The <span> is pinned to top:0 of that block (the boundary line between
+ * the previous row and this one) and then pulled up by half its own height
+ * with translateY(-50%), so the text CENTRE sits exactly ON the grid line.
+ *
+ * This is mathematically identical to how event cards are positioned:
+ *   event top = (startHour − START_HOUR) × ROW_HEIGHT
+ * which also lands at the boundary between rows → perfect alignment.
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ */
+.time-slot-label {
+  height: 100px;
+  position: relative;   /* anchor for the absolutely-positioned span */
+}
+.time-slot-label span {
+  position: absolute;
+  right: 10px;
+  top: 0;               /* sit at the grid-line boundary */
+  transform: translateY(-50%);  /* centre text ON the line */
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* ─── DAYS GRID ───────────────────────────────────────────────────────── */
+/*
+ * NO border-top — the old border-top pushed the grid 1 px lower than the
+ * time-labels, creating a permanent 1 px offset in all label positions.
+ */
+.days-grid { display: flex; flex-grow: 1; }
+.day-column { flex: 1; border-left: 1px solid #f1f5f9; position: relative; }
+.grid-cell  { height: 100px; border-bottom: 1px solid #f1f5f9; }
+
+/* ─── EVENT CARDS ─────────────────────────────────────────────────────── */
+.event-card {
+  position: absolute;
+  left: 8px;
+  width: calc(100% - 16px);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  border-left: 5px solid;
+  overflow: hidden;
+  cursor: pointer;           /* clickable — click to delete */
+  transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+.event-card:hover {
+  transform: scale(1.02);
+  opacity: 0.8;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+}
+.event-title { display: block; }
+/* Hint text shown on hover */
+.delete-hint {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 3px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.event-card:hover .delete-hint { opacity: 0.65; }
+
+.blue   { background-color: #e0f2fe; color: #0369a1; border-color: #0ea5e9; }
+.green  { background-color: #f0fdf4; color: #15803d; border-color: #22c55e; }
+.purple { background-color: #faf5ff; color: #7e22ce; border-color: #a855f7; }
+
+/* ─── MODAL ───────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(15, 23, 42, 0.6); display: flex;
+  justify-content: center; align-items: center;
+  z-index: 1000; backdrop-filter: blur(5px);
+}
+.modal-content {
+  background: #ffffff; padding: 40px; border-radius: 24px;
+  width: 480px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+.modal-content h2 { margin: 0 0 24px 0; font-size: 20px; font-weight: 800; color: #1e293b; }
+.form-group { margin-bottom: 20px; display: flex; flex-direction: column; }
+.form-group label { font-size: 12px; font-weight: 800; color: #64748b; margin-bottom: 8px; text-transform: uppercase; }
+.form-group input, .form-group select {
+  padding: 12px 16px; border: 2px solid #f1f5f9; border-radius: 12px;
+  font-size: 15px; font-weight: 600; color: #1e293b; background: #f8fafc; outline: none;
+}
+.form-group input:focus, .form-group select:focus { border-color: #6b7bb8; }
+.checkbox-group { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; background: #f0f4ff; padding: 16px; border-radius: 16px; }
+.form-row { display: flex; gap: 16px; }
+.form-row .form-group { flex: 1; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 32px; }
+.save-btn { background: #6b7bb8; color: white; border: none; padding: 12px 32px; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer; transition: 0.2s; }
+.save-btn:hover { background: #5a679d; transform: translateY(-1px); }
+.cancel-btn { background: white; border: 2px solid #f1f5f9; padding: 12px 24px; border-radius: 12px; color: #64748b; font-weight: 700; font-size: 15px; cursor: pointer; }
+.cancel-btn:hover { background: #f8fafc; }
