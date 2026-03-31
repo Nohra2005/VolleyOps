@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../UserContext';
 import logo from '../assets/logo.png';
+import { apiFetch, formatApiDate } from '../lib/api';
 import './ClubManagement.css';
 
 // ── No hardcoded initial data — lists start empty ─────────────────────────────
@@ -37,12 +38,15 @@ export default function ClubManagement() {
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [rowsPerPage,  setRowsPerPage]  = useState(10);
   const [currentPage,  setCurrentPage]  = useState(1);
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // ── Modal state ───────────────────────────────────────────────────────────
   const [modal,    setModal]    = useState({ open: false, mode: 'add', member: null });
   const [formData, setFormData] = useState({
     name: '', email: '', phone: '', emergencyContact: '',
-    dateOfBirth: '', team: '', position: '', attendanceRate: '',
+    dateOfBirth: '', teamId: '', position: '', attendanceRate: '',
     payment: 'Paid', nextPayment: '',
   });
 
@@ -51,7 +55,6 @@ export default function ClubManagement() {
   const [coaches, setCoaches] = useState([]);
 
   const data    = activeTab === 'Players' ? players : coaches;
-  const setData = activeTab === 'Players' ? setPlayers : setCoaches;
 
   const filtered = useMemo(() =>
     data.filter(m =>
@@ -68,30 +71,70 @@ export default function ClubManagement() {
   const toggleAll   = () => { const n = new Set(selectedRows); paginated.forEach(m => allSelected ? n.delete(m.id) : n.add(m.id)); setSelectedRows(n); };
   const toggleRow   = (id) => { const n = new Set(selectedRows); n.has(id) ? n.delete(id) : n.add(id); setSelectedRows(n); };
 
+  const loadMembers = async () => {
+    try {
+      setLoading(true);
+      const [membersData, teamsData] = await Promise.all([
+        apiFetch('/api/members'),
+        apiFetch('/api/teams'),
+      ]);
+      setPlayers((membersData || []).filter(member => member.role === 'ATHLETE'));
+      setCoaches((membersData || []).filter(member => member.role === 'COACH'));
+      setTeams(teamsData || []);
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMembers();
+  }, []);
+
   const openAdd  = () => {
-    setFormData({ name:'', email:'', phone:'', emergencyContact:'', dateOfBirth:'', team:'', position:'', attendanceRate:'', payment:'Paid', nextPayment:'' });
+    setFormData({ name:'', email:'', phone:'', emergencyContact:'', dateOfBirth:'', teamId:'', position:'', attendanceRate:'', payment:'Paid', nextPayment:'' });
     setModal({ open: true, mode: 'add', member: null });
   };
   const openEdit = (m) => {
-    setFormData({ name: m.name, email: m.email, phone: m.phone || '', emergencyContact: m.emergencyContact || '', dateOfBirth: m.dateOfBirth || '', team: m.team, position: m.position, attendanceRate: m.attendanceRate || '', payment: m.payment, nextPayment: m.nextPayment || '' });
+    setFormData({ name: m.name, email: m.email, phone: m.phone || '', emergencyContact: m.emergencyContact || '', dateOfBirth: formatApiDate(m.dateOfBirth || ''), teamId: m.teamId ? String(m.teamId) : '', position: m.position, attendanceRate: m.attendanceRate || '', payment: m.payment, nextPayment: formatApiDate(m.nextPayment || '') });
     setModal({ open: true, mode: 'edit', member: m });
   };
-  const deleteMember = (id) => setData(prev => prev.filter(m => m.id !== id));
-
-  const saveModal = (e) => {
-    e.preventDefault();
-    if (modal.mode === 'add') {
-      const newMember = {
-        id: Date.now(),
-        ...formData,
-        joined: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-        lastActive: 'Just now',
-      };
-      setData(prev => [newMember, ...prev]);
-    } else {
-      setData(prev => prev.map(m => m.id === modal.member.id ? { ...m, ...formData } : m));
+  const deleteMember = async (id) => {
+    try {
+      await apiFetch(`/api/members/${id}`, { method: 'DELETE' });
+      await loadMembers();
+    } catch (err) {
+      setError(err.message);
     }
-    setModal({ open: false, mode: 'add', member: null });
+  };
+
+  const saveModal = async (e) => {
+    e.preventDefault();
+    const payload = {
+      ...formData,
+      role: activeTab === 'Players' ? 'ATHLETE' : 'COACH',
+      teamId: formData.teamId ? Number(formData.teamId) : null,
+    };
+    try {
+      if (modal.mode === 'add') {
+        await apiFetch('/api/members', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch(`/api/members/${modal.member.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+      }
+      await loadMembers();
+      setModal({ open: false, mode: 'add', member: null });
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   // ── Eye icon — navigate to player profile page ────────────────────────────
@@ -153,6 +196,7 @@ export default function ClubManagement() {
         </div>
 
         <div className="cm-table-wrapper">
+          {error && <p className="cm-empty">{error}</p>}
           <table className="cm-table">
             <thead>
               <tr>
@@ -168,7 +212,11 @@ export default function ClubManagement() {
               </tr>
             </thead>
             <tbody>
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="cm-empty">Loading members...</td>
+                </tr>
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="cm-empty">
                     {searchQuery ? 'No members match your search.' : `No ${activeTab.toLowerCase()} yet. Click "+ Add Member" to get started.`}
@@ -262,8 +310,13 @@ export default function ClubManagement() {
                 </div>
                 <div className="cm-form-group">
                   <label>Team</label>
-                  <input type="text" placeholder="e.g. U18"
-                    value={formData.team} onChange={e => setFormData({...formData, team: e.target.value})} />
+                  <select
+                    value={formData.teamId}
+                    onChange={e => setFormData({...formData, teamId: e.target.value})}
+                  >
+                    <option value="">Select a team</option>
+                    {teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
+                  </select>
                 </div>
               </div>
               <div className="cm-form-row">

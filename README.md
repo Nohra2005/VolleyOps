@@ -15,7 +15,7 @@ Before setting up the environment, ensure you have the following installed:
 
 ## Getting Started
 
-Follow these steps to get the project running on your local machine:
+Follow these steps to run the full project locally.
 
 1. **Clone the repository**
    ```bash
@@ -23,15 +23,26 @@ Follow these steps to get the project running on your local machine:
    cd volleyops
    ```
 
-2. **Install dependencies**
+2. **Start the backend**
    ```bash
-   npm install
+   cd backend
+   python -m venv .venv
+   .venv\Scripts\activate
+   pip install -r requirements.txt
+   python app.py
    ```
+   The backend API will run on `http://localhost:5000`.
 
-3. **Launch the development server**
+3. **Start the frontend**
    ```bash
+   cd frontend
+   npm install
    npm run dev
    ```
-   The application will be available at `http://localhost:5173`. Navigate to the scheduling route if applicable.
-  ```
----
+   The frontend will run on `http://localhost:5173` and proxy `/api` requests to the backend.
+
+## What is included
+
+- `backend/`: Flask API, database models, seeded demo data, and endpoints for scheduling, club management, plays, stats, auth, and communications
+- `frontend/`: React/Vite UI connected to the live backend for Scheduling, Club Management, and Player Profile flows
+--- 

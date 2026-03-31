@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/logo.png';
+import { apiFetch } from '../lib/api';
 import './Scheduling.css';
 
 const getMonday = (date) => {
@@ -17,14 +18,15 @@ export default function Scheduling() {
   const [currentMiniMonth, setCurrentMiniMonth] = useState(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1)
   );
-
-  const [events, setEvents] = useState([
-    { id: 1, title: 'U16 Team', court: 'Court 1', dayOfWeek: 1, specificDate: null, startHour: 9, endHour: 11, color: 'blue', isRecurring: true, exceptions: [] },
-  ]);
+  const [events, setEvents] = useState([]);
+  const [facilities, setFacilities] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
-    title: '', day: 1, startHour: 9, endHour: 11, color: 'blue', isRecurring: true, court: 'Court 1'
+    title: '', teamId: '', day: 1, startHour: 9, endHour: 11, color: 'blue', isRecurring: true, court: 'Court 1'
   });
 
   const [deleteModal, setDeleteModal] = useState({ open: false, event: null, instanceDate: null });
@@ -55,21 +57,61 @@ export default function Scheduling() {
   const handlePrevWeek = () => { const d = new Date(selectedDate); d.setDate(d.getDate()-7); setSelectedDate(d); setCurrentMiniMonth(new Date(d.getFullYear(), d.getMonth(), 1)); };
   const handleNextWeek = () => { const d = new Date(selectedDate); d.setDate(d.getDate()+7); setSelectedDate(d); setCurrentMiniMonth(new Date(d.getFullYear(), d.getMonth(), 1)); };
   const handleMiniDateClick = (date) => { setSelectedDate(date); setCurrentMiniMonth(new Date(date.getFullYear(), date.getMonth(), 1)); };
+  const weekStartIso = useMemo(() => currentMonday.toISOString().slice(0, 10), [currentMonday]);
+
+  useEffect(() => {
+    const loadBootstrap = async () => {
+      try {
+        const data = await apiFetch('/api/bootstrap');
+        setFacilities(data.facilities || []);
+        setTeams(data.teams || []);
+        if ((data.facilities || []).length > 0) {
+          setSelectedCourt(prev => prev || data.facilities[0].name);
+          setFormData(prev => ({
+            ...prev,
+            court: prev.court || data.facilities[0].name,
+            teamId: prev.teamId || String(data.teams?.[0]?.id || ''),
+          }));
+        }
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+    loadBootstrap();
+  }, []);
+
+  useEffect(() => {
+    const loadBookings = async () => {
+      try {
+        setLoading(true);
+        const data = await apiFetch(`/api/bookings?weekStart=${weekStartIso}`);
+        setEvents(data || []);
+        setError('');
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadBookings();
+  }, [weekStartIso]);
 
   const handleEventClick = (event, dayColumn) => {
     setDeleteModal({ open: true, event, instanceDate: dayColumn.fullDate });
   };
 
-  const confirmDelete = (mode) => {
+  const confirmDelete = async (mode) => {
     const { event, instanceDate } = deleteModal;
-    if (mode === 'all') {
-      setEvents(prev => prev.filter(e => e.id !== event.id));
-    } else {
-      if (event.isRecurring) {
-        setEvents(prev => prev.map(e => e.id === event.id ? { ...e, exceptions: [...(e.exceptions||[]), instanceDate.toDateString()] } : e));
-      } else {
-        setEvents(prev => prev.filter(e => e.id !== event.id));
-      }
+    try {
+      const query = mode === 'all'
+        ? ''
+        : `?mode=instance&instanceDate=${instanceDate.toISOString().slice(0, 10)}`;
+      await apiFetch(`/api/bookings/${event.id}${query}`, { method: 'DELETE' });
+      const refreshed = await apiFetch(`/api/bookings?weekStart=${weekStartIso}`);
+      setEvents(refreshed || []);
+      setError('');
+    } catch (err) {
+      setError(err.message);
     }
     setDeleteModal({ open: false, event: null, instanceDate: null });
   };
@@ -89,17 +131,33 @@ export default function Scheduling() {
     return cells;
   };
 
-  const handleCreateBooking = (e) => {
+  const handleCreateBooking = async (e) => {
     e.preventDefault();
-    const newId = events.length > 0 ? Math.max(...events.map(ev=>ev.id))+1 : 1;
-    setEvents([...events, {
-      id: newId, title: formData.title, court: formData.court,
-      dayOfWeek: Number(formData.day),
-      specificDate: formData.isRecurring ? null : mainCalendarDays.find(d=>d.value===Number(formData.day)).fullDate.toDateString(),
-      startHour: Number(formData.startHour), endHour: Number(formData.endHour),
-      color: formData.color, isRecurring: formData.isRecurring, exceptions: [],
-    }]);
-    setIsModalOpen(false);
+    try {
+      const selectedFacility = facilities.find(item => item.name === formData.court);
+      const selectedDay = mainCalendarDays.find(d => d.value === Number(formData.day));
+      await apiFetch('/api/bookings', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: formData.title,
+          facility_id: selectedFacility?.id,
+          team_id: formData.teamId ? Number(formData.teamId) : null,
+          day_of_week: formData.isRecurring ? Number(formData.day) : null,
+          specific_date: formData.isRecurring ? null : selectedDay?.fullDate.toISOString().slice(0, 10),
+          start_hour: Number(formData.startHour),
+          end_hour: Number(formData.endHour),
+          color: formData.color,
+          is_recurring: formData.isRecurring,
+          anchor_date: selectedDay?.fullDate.toISOString().slice(0, 10),
+        }),
+      });
+      const refreshed = await apiFetch(`/api/bookings?weekStart=${weekStartIso}`);
+      setEvents(refreshed || []);
+      setIsModalOpen(false);
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -116,7 +174,7 @@ export default function Scheduling() {
           <span>+</span> Create Booking
         </button>
         <div className="court-filters">
-          {['Court 1','Court 2','Main Hall'].map(court => (
+          {facilities.map(({ name: court }) => (
             <button key={court} className={`court-btn ${selectedCourt===court?'active':''}`} onClick={()=>setSelectedCourt(court)}>{court}</button>
           ))}
         </div>
@@ -162,6 +220,8 @@ export default function Scheduling() {
         </div>
 
         <div className="calendar-body">
+          {error && <p className="calendar-error">{error}</p>}
+          {loading && <p className="calendar-loading">Loading bookings...</p>}
           <div className="time-labels">
             {hours.map((h,i) => <div key={i} className="time-slot-label"><span>{h.label}</span></div>)}
           </div>
@@ -226,7 +286,8 @@ export default function Scheduling() {
             <h2>Create New Booking</h2>
             <form onSubmit={handleCreateBooking}>
               <div className="form-group"><label>Event Name</label><input type="text" required value={formData.title} onChange={e=>setFormData({...formData,title:e.target.value})} placeholder="e.g., U16 Practice" /></div>
-              <div className="form-group"><label>Court</label><select value={formData.court} onChange={e=>setFormData({...formData,court:e.target.value})}><option>Court 1</option><option>Court 2</option><option>Main Hall</option></select></div>
+              <div className="form-group"><label>Team</label><select value={formData.teamId} onChange={e=>setFormData({...formData,teamId:e.target.value})}>{teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}</select></div>
+              <div className="form-group"><label>Court</label><select value={formData.court} onChange={e=>setFormData({...formData,court:e.target.value})}>{facilities.map(facility => <option key={facility.id} value={facility.name}>{facility.name}</option>)}</select></div>
               <div className="checkbox-group"><input type="checkbox" id="recurring" checked={formData.isRecurring} onChange={e=>setFormData({...formData,isRecurring:e.target.checked})} /><label htmlFor="recurring">Repeat weekly</label></div>
               <div className="form-row">
                 <div className="form-group"><label>Day</label><select value={formData.day} onChange={e=>setFormData({...formData,day:e.target.value})}>{mainCalendarDays.map(d=><option key={d.value} value={d.value}>{d.name}</option>)}</select></div>
