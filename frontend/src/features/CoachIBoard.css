@@ -1,0 +1,484 @@
+* {
+  box-sizing: border-box;
+}
+
+.iboard-page {
+  min-height: 100vh;
+  display: flex;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.iboard-sidebar {
+  width: 360px;
+  padding: 24px;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.iboard-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.iboard-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.iboard-eyebrow {
+  margin: 0 0 4px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.iboard-brand h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: #6b7bb8;
+}
+
+.iboard-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.iboard-section h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.plays-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.play-list-item {
+  width: 100%;
+  border: 1px solid #dbe4ff;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.play-list-item:hover {
+  border-color: #a5b4fc;
+  transform: translateY(-1px);
+}
+
+.play-list-item.active {
+  background: #eef2ff;
+  border-color: #6b7bb8;
+  box-shadow: 0 0 0 1px #6b7bb8;
+}
+
+.play-list-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.play-list-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.helper-text {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.primary-btn,
+.secondary-btn,
+.ghost-btn {
+  border: none;
+  border-radius: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.primary-btn {
+  width: 100%;
+  background: #6b7bb8;
+  color: #ffffff;
+  padding: 12px 16px;
+}
+
+.primary-btn:hover {
+  background: #5a679d;
+}
+
+.secondary-btn {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #dbe4ff;
+  padding: 11px 14px;
+}
+
+.secondary-btn:hover {
+  background: #f8fafc;
+}
+
+.ghost-btn {
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 10px 14px;
+}
+
+.ghost-btn:hover {
+  background: #e0e7ff;
+}
+
+.tool-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.tool-toggle button {
+  border: 1px solid #dbe4ff;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.tool-toggle button.active {
+  background: #eef2ff;
+  color: #4f46e5;
+  border-color: #818cf8;
+}
+
+.color-picker {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.color-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 1px #cbd5e1;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.color-swatch.active {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 3px #0f172a;
+}
+
+.action-stack {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.bench-role-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.role-token,
+.court-player-token {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.role-token {
+  background: #ffffff;
+  border: 1px solid #dbe4ff;
+  cursor: grab;
+}
+
+.role-token.on-court {
+  opacity: 0.8;
+}
+
+.role-token:active,
+.court-player-token:active {
+  cursor: grabbing;
+}
+
+.role-short {
+  min-width: 40px;
+  text-align: center;
+  background: #6b7bb8;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 8px 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.role-label {
+  font-size: 13px;
+  color: #1e293b;
+  font-weight: 800;
+}
+
+.bench-summary {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.iboard-main {
+  flex: 1;
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.iboard-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.play-name-input {
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  font-weight: 900;
+  color: #0f172a;
+  outline: none;
+  padding: 0;
+  width: min(520px, 70vw);
+}
+
+.back-btn {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 11px 22px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.back-btn:hover {
+  background: #f8fafc;
+}
+
+.iboard-summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summary-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 16px 18px;
+}
+
+.summary-label {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.color-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.court-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.court-instructions {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px 18px;
+  font-size: 14px;
+  color: #334155;
+}
+
+.volleyball-court {
+  position: relative;
+  flex: 1;
+  min-height: 620px;
+  border-radius: 28px;
+  background:
+    linear-gradient(to bottom, transparent 49.5%, #ffffff 49.5%, #ffffff 50.5%, transparent 50.5%),
+    linear-gradient(to right, transparent 32.8%, rgba(255,255,255,0.9) 32.8%, rgba(255,255,255,0.9) 33.4%, transparent 33.4%),
+    linear-gradient(to right, transparent 66.6%, rgba(255,255,255,0.9) 66.6%, rgba(255,255,255,0.9) 67.2%, transparent 67.2%),
+    #f4a261;
+  box-shadow: inset 0 0 0 10px #d97706, 0 18px 50px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.volleyball-court.arrow-mode {
+  cursor: crosshair;
+}
+
+.court-drawings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.center-line {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,0.92);
+  z-index: 0;
+}
+
+.attack-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.92);
+  z-index: 0;
+}
+
+.attack-line-top {
+  top: 33.33%;
+}
+
+.attack-line-bottom {
+  top: 66.66%;
+}
+
+.court-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.slot-label {
+  background: rgba(15, 23, 42, 0.82);
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.court-player-token {
+  min-width: 155px;
+  justify-content: flex-start;
+  background: rgba(255,255,255,0.97);
+  border: 2px solid #dbe4ff;
+  cursor: grab;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.court-player-token.dragging {
+  opacity: 0.45;
+}
+
+@media (max-width: 1100px) {
+  .iboard-page {
+    flex-direction: column;
+  }
+
+  .iboard-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .iboard-summary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .volleyball-court {
+    min-height: 520px;
+  }
+
+  .court-player-token {
+    min-width: 125px;
+  }
+}
