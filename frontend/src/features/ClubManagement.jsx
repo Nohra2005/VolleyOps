@@ -49,10 +49,13 @@ export default function ClubManagement() {
     dateOfBirth: '', teamId: '', position: '', attendanceRate: '',
     payment: 'Paid', nextPayment: '',
   });
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [teamFormData, setTeamFormData] = useState({ name: '', division: '', ageGroup: '' });
 
   // ── Data starts empty ─────────────────────────────────────────────────────
   const [players, setPlayers] = useState([]);
   const [coaches, setCoaches] = useState([]);
+  
 
   const data    = activeTab === 'Players' ? players : coaches;
 
@@ -137,6 +140,23 @@ export default function ClubManagement() {
     }
   };
 
+  const saveTeamModal = async (e) => {
+  e.preventDefault();
+  try {
+    await apiFetch('/api/teams', {
+      method: 'POST',
+      body: JSON.stringify(teamFormData),
+    });
+    // Reload data so the new team appears in the select dropdowns
+    await loadMembers(); 
+    setTeamModalOpen(false);
+    setTeamFormData({ name: '', division: '', ageGroup: '' });
+    setError('');
+  } catch (err) {
+    setError(err.message);
+  }
+};
+
   // ── Eye icon — navigate to player profile page ────────────────────────────
   const viewProfile = (member) => {
     navigate(`/player-profile/${member.id}`, { state: { member } });
@@ -181,7 +201,14 @@ export default function ClubManagement() {
             value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }} />
           <button className="cm-search-btn"><IconSearch /></button>
         </div>
-        <button className="cm-add-btn" onClick={openAdd}>+ Add Member</button>
+        
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {/* Conditionally render Add Team based on Role */}
+          {(user.role === 'MANAGER' || user.role === 'COACH' || user.role === 'Admin') && (
+            <button className="cm-add-btn" onClick={() => setTeamModalOpen(true)}>+ Add Team</button>
+          )}
+          <button className="cm-add-btn" onClick={openAdd}>+ Add Member</button>
+        </div>
       </div>
 
       {/* ── Table card ───────────────────────────────────────────────── */}
@@ -347,6 +374,40 @@ export default function ClubManagement() {
               <div className="cm-modal-actions">
                 <button type="button" className="cm-cancel-btn" onClick={() => setModal({ open: false })}>Cancel</button>
                 <button type="submit" className="cm-save-btn">{modal.mode === 'add' ? 'Add Member' : 'Save Changes'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Team modal ────────────────────────────────────────────────── */}
+      {teamModalOpen && (
+        <div className="cm-modal-overlay" onClick={() => setTeamModalOpen(false)}>
+          <div className="cm-modal" onClick={e => e.stopPropagation()}>
+            <h2>Add New Team</h2>
+            <form onSubmit={saveTeamModal}>
+              <div className="cm-form-row">
+                <div className="cm-form-group">
+                  <label>Team Name</label>
+                  <input type="text" required placeholder="e.g. U16 A"
+                    value={teamFormData.name} onChange={e => setTeamFormData({...teamFormData, name: e.target.value})} />
+                </div>
+                <div className="cm-form-group">
+                  <label>Division</label>
+                  <input type="text" required placeholder="e.g. Varsity"
+                    value={teamFormData.division} onChange={e => setTeamFormData({...teamFormData, division: e.target.value})} />
+                </div>
+              </div>
+              <div className="cm-form-row">
+                <div className="cm-form-group">
+                  <label>Age Group</label>
+                  <input type="text" placeholder="e.g. U16"
+                    value={teamFormData.ageGroup} onChange={e => setTeamFormData({...teamFormData, ageGroup: e.target.value})} />
+                </div>
+              </div>
+              <div className="cm-modal-actions">
+                <button type="button" className="cm-cancel-btn" onClick={() => setTeamModalOpen(false)}>Cancel</button>
+                <button type="submit" className="cm-save-btn">Add Team</button>
               </div>
             </form>
           </div>

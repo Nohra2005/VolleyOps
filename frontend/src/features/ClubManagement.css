@@ -74,14 +74,15 @@ input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-colo
  * position: fixed + z-index: 9999 ensures it always floats above the table
  * and the cm-card's overflow:hidden container.
  */
-.cm-modal-overlay {
-  position: fixed;
+/* ── Modal overlay ────────────────────────────────────────────────────────── */
+.cm-container .cm-modal-overlay {
+  position: fixed !important; /* Forces it to break out of the relative container */
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(15, 23, 42, 0.65); /* Slightly darker for a better full-screen dim */
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;          /* high enough to beat any stacking context */
+  z-index: 9999 !important; /* Guarantees it floats above the table and header */
   backdrop-filter: blur(4px);
 }
 .cm-modal {
