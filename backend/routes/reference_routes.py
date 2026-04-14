@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required
 from extensions import db
 from model import Facility, Team, User
+from services.access_control import ROLE_COACH, ROLE_MANAGER, current_user_or_error, normalize_role
 
 reference_bp = Blueprint("reference", __name__, url_prefix="/api")
 
@@ -11,6 +13,7 @@ def health():
 
 
 @reference_bp.get("/bootstrap")
+@jwt_required()
 def bootstrap():
     facilities = Facility.query.order_by(Facility.id.asc()).all()
     teams = Team.query.order_by(Team.name.asc()).all()
@@ -19,12 +22,13 @@ def bootstrap():
         {
             "facilities": [{"id": facility.id, "name": facility.name} for facility in facilities],
             "teams": [{"id": team.id, "name": team.name, "division": team.division} for team in teams],
-            "demoUsers": [{"id": user.id, "name": user.full_name, "role": user.role} for user in demo_users],
+            "demoUsers": [{"id": user.id, "name": user.full_name, "role": normalize_role(user.role)} for user in demo_users],
         }
     )
 
 
 @reference_bp.get("/teams")
+@jwt_required()
 def list_teams():
     teams = Team.query.order_by(Team.name.asc()).all()
     return jsonify(
@@ -36,6 +40,7 @@ def list_teams():
 
 
 @reference_bp.get("/facilities")
+@jwt_required()
 def list_facilities():
     facilities = Facility.query.order_by(Facility.id.asc()).all()
     return jsonify(
@@ -46,7 +51,12 @@ def list_facilities():
     )
 
 @reference_bp.post("/teams")
+@jwt_required()
 def create_team():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     payload = request.get_json(silent=True) or {}
     name = payload.get("name")
     division = payload.get("division")

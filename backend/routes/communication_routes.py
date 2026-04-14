@@ -1,7 +1,9 @@
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required
 
 from extensions import db
 from model import Channel, Message
+from services.access_control import ROLE_COACH, ROLE_MANAGER, ROLE_PLAYER, current_user_or_error
 
 communication_bp = Blueprint("communication", __name__, url_prefix="/api/communications")
 
@@ -31,18 +33,30 @@ def serialize_message(message):
 
 
 @communication_bp.get("/channels")
+@jwt_required()
 def list_channels():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH, ROLE_PLAYER)
+    if error:
+        return error
     return jsonify([serialize_channel(channel) for channel in Channel.query.order_by(Channel.name.asc()).all()])
 
 
 @communication_bp.get("/channels/<int:channel_id>/messages")
+@jwt_required()
 def list_messages(channel_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH, ROLE_PLAYER)
+    if error:
+        return error
     channel = Channel.query.get_or_404(channel_id)
     return jsonify([serialize_message(message) for message in channel.messages])
 
 
 @communication_bp.post("/channels/<int:channel_id>/messages")
+@jwt_required()
 def post_message(channel_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH, ROLE_PLAYER)
+    if error:
+        return error
     Channel.query.get_or_404(channel_id)
     payload = request.get_json(silent=True) or {}
     message = Message(

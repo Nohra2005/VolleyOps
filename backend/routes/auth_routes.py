@@ -1,35 +1,30 @@
 from datetime import date
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
+from flask_jwt_extended import create_access_token, jwt_required
 
 from extensions import db
 from model import User
+from services.access_control import ROLE_MANAGER, ROLE_PLAYER, VALID_ROLES, current_user_or_error, normalize_role
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
-VALID_ROLES = {"ADMIN", "MANAGER", "COACH", "ATHLETE"}
 
 
 def serialize_user(user):
+    role = normalize_role(user.role)
     return {
         "id": user.id,
         "name": user.full_name,
         "email": user.email,
-        "role": user.role,
+        "role": role,
         "teamId": user.team_id,
         "team": user.team.name if user.team else None,
     }
 
 
 def create_token_for_user(user):
-    return create_access_token(identity=str(user.id), additional_claims={"role": user.role})
-
-
-def current_admin_or_error():
-    current_user = User.query.get(get_jwt_identity())
-    if not current_user or current_user.role != "ADMIN":
-        return None, (jsonify({"error": "Admin access required"}), 403)
-    return current_user, None
+    role = normalize_role(user.role)
+    return create_access_token(identity=str(user.id), additional_claims={"role": role})
 
 
 @auth_bp.post("/login")
@@ -42,6 +37,7 @@ def login():
     if not user or user.password != password:
         return jsonify({"error": "Invalid email or password"}), 401
 
+    user.role = normalize_role(user.role)
     access_token = create_token_for_user(user)
     return jsonify({"token": access_token, "user": serialize_user(user)})
 
@@ -60,7 +56,7 @@ def signup():
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "A user with this email already exists"}), 409
 
-    role = "ADMIN" if User.query.count() == 0 else "ATHLETE"
+    role = ROLE_MANAGER if User.query.count() == 0 else ROLE_PLAYER
     user = User(full_name=name, email=email, password=password, role=role, joined_at=date.today())
     db.session.add(user)
     db.session.commit()
@@ -78,7 +74,7 @@ def me():
 @auth_bp.get("/users")
 @jwt_required()
 def list_users():
-    _, error = current_admin_or_error()
+    _, error = current_user_or_error(ROLE_MANAGER)
     if error:
         return error
 
@@ -89,14 +85,14 @@ def list_users():
 @auth_bp.put("/users/<int:user_id>/role")
 @jwt_required()
 def update_user_role(user_id):
-    _, error = current_admin_or_error()
+    _, error = current_user_or_error(ROLE_MANAGER)
     if error:
         return error
 
     payload = request.get_json(silent=True) or {}
-    role = (payload.get("role") or "").upper()
+    role = normalize_role(payload.get("role") or "")
     if role not in VALID_ROLES:
-        return jsonify({"error": "Role must be ADMIN, MANAGER, COACH, or ATHLETE"}), 400
+        return jsonify({"error": "Role must be MANAGER, COACH, or PLAYER"}), 400
 
     user = User.query.get_or_404(user_id)
     user.role = role

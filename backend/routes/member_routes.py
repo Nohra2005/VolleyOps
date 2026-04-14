@@ -1,20 +1,23 @@
 from datetime import date, datetime
 
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required
 
 from extensions import db
 from model import User
+from services.access_control import ROLE_COACH, ROLE_MANAGER, ROLE_PLAYER, VALID_ROLES, current_user_or_error, normalize_role
 from services.serialization import format_date, format_pretty_date, last_active_label
 
 member_bp = Blueprint("member", __name__, url_prefix="/api/members")
 
 
 def serialize_member(member):
+    role = normalize_role(member.role)
     return {
         "id": member.id,
         "name": member.full_name,
         "email": member.email,
-        "role": member.role,
+        "role": role,
         "phone": member.phone,
         "emergencyContact": member.emergency_contact,
         "dateOfBirth": format_date(member.date_of_birth),
@@ -46,29 +49,48 @@ def apply_member_updates(member, payload):
 
 
 @member_bp.get("")
+@jwt_required()
 def list_members():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     role = (request.args.get("role") or "").upper()
     query = User.query
     if role:
-        query = query.filter(User.role == role)
+        query = query.filter(User.role == normalize_role(role))
     members = query.order_by(User.full_name.asc()).all()
     return jsonify([serialize_member(member) for member in members])
 
 
 @member_bp.get("/<int:member_id>")
+@jwt_required()
 def get_member(member_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     member = User.query.get_or_404(member_id)
     return jsonify(serialize_member(member))
 
 
 @member_bp.post("")
+@jwt_required()
 def create_member():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     payload = request.get_json(silent=True) or {}
+    role = normalize_role(payload.get("role") or ROLE_PLAYER)
+    if role not in VALID_ROLES:
+        return jsonify({"error": "Role must be MANAGER, COACH, or PLAYER"}), 400
+
     member = User(
         full_name=payload["name"].strip(),
         email=payload["email"].strip().lower(),
         password=payload.get("password", "demo123"),
-        role=(payload.get("role") or "ATHLETE").upper(),
+        role=role,
         joined_at=date.today(),
     )
     apply_member_updates(member, payload)
@@ -78,18 +100,31 @@ def create_member():
 
 
 @member_bp.put("/<int:member_id>")
+@jwt_required()
 def update_member(member_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     member = User.query.get_or_404(member_id)
     payload = request.get_json(silent=True) or {}
     if payload.get("role"):
-        member.role = payload["role"].upper()
+        role = normalize_role(payload["role"])
+        if role not in VALID_ROLES:
+            return jsonify({"error": "Role must be MANAGER, COACH, or PLAYER"}), 400
+        member.role = role
     apply_member_updates(member, payload)
     db.session.commit()
     return jsonify(serialize_member(member))
 
 
 @member_bp.delete("/<int:member_id>")
+@jwt_required()
 def delete_member(member_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     member = User.query.get_or_404(member_id)
     db.session.delete(member)
     db.session.commit()

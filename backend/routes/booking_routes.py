@@ -1,9 +1,11 @@
 from datetime import timedelta
 
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required
 
 from extensions import db
 from model import Booking
+from services.access_control import ROLE_COACH, ROLE_MANAGER, current_user_or_error
 from services.booking_service import (
     create_booking,
     delete_booking_instance,
@@ -15,6 +17,7 @@ booking_bp = Blueprint("booking", __name__, url_prefix="/api/bookings")
 
 
 @booking_bp.get("")
+@jwt_required()
 def list_bookings():
     week_start_raw = request.args.get("weekStart")
     court = request.args.get("court")
@@ -45,14 +48,24 @@ def list_bookings():
 
 
 @booking_bp.post("")
+@jwt_required()
 def create_booking_route():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     payload = request.get_json(silent=True) or {}
     booking = create_booking(payload)
     return jsonify(serialize_booking(booking)), 201
 
 
 @booking_bp.delete("/<int:booking_id>")
+@jwt_required()
 def delete_booking_route(booking_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     booking = Booking.query.get_or_404(booking_id)
     mode = request.args.get("mode", "all")
     instance_date = request.args.get("instanceDate")

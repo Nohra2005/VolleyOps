@@ -1,10 +1,12 @@
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required
 from sqlalchemy import func
 
 from extensions import db
 from model import AIFeedback, Match, PlayerMatchStat, Team, User
+from services.access_control import ROLE_COACH, ROLE_MANAGER, ROLE_PLAYER, current_user_or_error
 from services.stats_service import calculate_hitting_percentage, calculate_performance_score, generate_feedback_text
 
 stats_bp = Blueprint("stats", __name__, url_prefix="/api/stats")
@@ -50,7 +52,12 @@ def serialize_stat(stat):
 
 
 @stats_bp.get("/matches")
+@jwt_required()
 def list_matches():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH, ROLE_PLAYER)
+    if error:
+        return error
+
     matches = Match.query.order_by(Match.played_on.desc()).all()
     return jsonify(
         [
@@ -68,7 +75,12 @@ def list_matches():
 
 
 @stats_bp.post("/matches")
+@jwt_required()
 def create_match_stat_bundle():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     payload = request.get_json(silent=True) or {}
     match = Match(
         team_id=int(payload["teamId"]),
@@ -136,7 +148,12 @@ def create_match_stat_bundle():
 
 
 @stats_bp.get("/players/<int:player_id>")
+@jwt_required()
 def player_stats(player_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH, ROLE_PLAYER)
+    if error:
+        return error
+
     User.query.get_or_404(player_id)
     stats = (
         PlayerMatchStat.query.filter_by(player_id=player_id)
@@ -148,7 +165,12 @@ def player_stats(player_id):
 
 
 @stats_bp.get("/teams/<int:team_id>/summary")
+@jwt_required()
 def team_summary(team_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH, ROLE_PLAYER)
+    if error:
+        return error
+
     Team.query.get_or_404(team_id)
     stats = (
         db.session.query(
@@ -173,7 +195,12 @@ def team_summary(team_id):
 
 
 @stats_bp.put("/feedback/<int:feedback_id>")
+@jwt_required()
 def update_feedback(feedback_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
     feedback = AIFeedback.query.get_or_404(feedback_id)
     payload = request.get_json(silent=True) or {}
     feedback.coach_edited_text = payload.get("coachEditedText", feedback.coach_edited_text)

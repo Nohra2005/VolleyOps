@@ -7,8 +7,8 @@ from db_config import DB_CONFIG, ensure_database_exists
 from extensions import cors, db, jwt, ma
 from routes import register_blueprints
 from services.seed_service import demo_login_payload
+from services.access_control import ROLE_MANAGER, normalize_role
 import model
-# from services.seed_service import seed_database
 
 ensure_database_exists()
 
@@ -88,13 +88,28 @@ def ensure_booking_schema_updates():
         )
 
 
+def normalize_user_roles():
+    users = model.User.query.all()
+    changed = False
+
+    for user in users:
+        normalized_role = normalize_role(user.role)
+        if user.role != normalized_role:
+            user.role = normalized_role
+            changed = True
+
+    if changed:
+        db.session.commit()
+
+
 with app.app_context():
     db.create_all()
+    normalize_user_roles()
     ensure_booking_schema_updates()
 
-    if model.User.query.count() > 0 and model.User.query.filter_by(role="ADMIN").count() == 0:
+    if model.User.query.count() > 0 and model.User.query.filter_by(role=ROLE_MANAGER).count() == 0:
         first_user = model.User.query.order_by(model.User.id.asc()).first()
-        first_user.role = "ADMIN"
+        first_user.role = ROLE_MANAGER
         db.session.commit()
     # seed_database()
 

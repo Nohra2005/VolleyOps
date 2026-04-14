@@ -17,6 +17,7 @@ from model import (
     Team,
     User,
 )
+from services.access_control import ROLE_COACH, ROLE_MANAGER, ROLE_PLAYER, normalize_role
 from services.stats_service import calculate_hitting_percentage, calculate_performance_score, generate_feedback_text
 
 
@@ -39,13 +40,13 @@ def seed_database():
     db.session.flush()
 
     users = [
-        User(full_name="VolleyOps Admin", email="admin@volleyops.test", password="admin123", role="ADMIN", phone="+961 70 000 000", joined_at=date(2025, 9, 1), payment_status="Paid", position="Club Admin", last_active_at=datetime.utcnow() - timedelta(minutes=3)),
-        User(full_name="Tatiana Nohrat", email="tatiana@volleyops.test", password="demo123", role="MANAGER", phone="+961 70 000 001", joined_at=date(2025, 9, 1), payment_status="Paid", team_id=teams[2].id, position="Team Manager", last_active_at=datetime.utcnow() - timedelta(minutes=5)),
-        User(full_name="Christophe El Chababc", email="christophe@volleyops.test", password="demo123", role="COACH", phone="+961 70 000 002", joined_at=date(2025, 9, 3), payment_status="Paid", team_id=teams[2].id, position="Head Coach", last_active_at=datetime.utcnow() - timedelta(hours=2)),
-        User(full_name="Joey Saade", email="joey@volleyops.test", password="demo123", role="ATHLETE", phone="+961 70 000 003", emergency_contact="+961 70 100 003", date_of_birth=date(2007, 2, 14), attendance_rate=94, payment_status="Pending", next_payment_date=date.today() + timedelta(days=14), joined_at=date(2025, 9, 8), team_id=teams[1].id, position="Setter", last_active_at=datetime.utcnow() - timedelta(minutes=12)),
-        User(full_name="Jad Mcheimech", email="jad@volleyops.test", password="demo123", role="ATHLETE", phone="+961 70 000 004", emergency_contact="+961 70 100 004", date_of_birth=date(2006, 6, 20), attendance_rate=88, payment_status="Overdue", next_payment_date=date.today() - timedelta(days=7), joined_at=date(2025, 9, 9), team_id=teams[2].id, position="Outside Hitter", last_active_at=datetime.utcnow() - timedelta(days=1, hours=1)),
-        User(full_name="Mira Haddad", email="mira@volleyops.test", password="demo123", role="COACH", phone="+961 70 000 005", joined_at=date(2025, 9, 4), payment_status="Paid", team_id=teams[1].id, position="Assistant Coach", last_active_at=datetime.utcnow() - timedelta(hours=6)),
-        User(full_name="Lana Khoury", email="lana@volleyops.test", password="demo123", role="ATHLETE", phone="+961 70 000 006", emergency_contact="+961 70 100 006", date_of_birth=date(2008, 11, 4), attendance_rate=97, payment_status="Paid", next_payment_date=date.today() + timedelta(days=30), joined_at=date(2025, 9, 12), team_id=teams[1].id, position="Middle Blocker", last_active_at=datetime.utcnow() - timedelta(minutes=35)),
+        User(full_name="VolleyOps Manager", email="manager@volleyops.test", password="manager123", role=ROLE_MANAGER, phone="+961 70 000 000", joined_at=date(2025, 9, 1), payment_status="Paid", position="Club Manager", last_active_at=datetime.utcnow() - timedelta(minutes=3)),
+        User(full_name="Tatiana Nohrat", email="tatiana@volleyops.test", password="demo123", role=ROLE_MANAGER, phone="+961 70 000 001", joined_at=date(2025, 9, 1), payment_status="Paid", team_id=teams[2].id, position="Team Manager", last_active_at=datetime.utcnow() - timedelta(minutes=5)),
+        User(full_name="Christophe El Chababc", email="christophe@volleyops.test", password="demo123", role=ROLE_COACH, phone="+961 70 000 002", joined_at=date(2025, 9, 3), payment_status="Paid", team_id=teams[2].id, position="Head Coach", last_active_at=datetime.utcnow() - timedelta(hours=2)),
+        User(full_name="Joey Saade", email="joey@volleyops.test", password="demo123", role=ROLE_PLAYER, phone="+961 70 000 003", emergency_contact="+961 70 100 003", date_of_birth=date(2007, 2, 14), attendance_rate=94, payment_status="Pending", next_payment_date=date.today() + timedelta(days=14), joined_at=date(2025, 9, 8), team_id=teams[1].id, position="Setter", last_active_at=datetime.utcnow() - timedelta(minutes=12)),
+        User(full_name="Jad Mcheimech", email="jad@volleyops.test", password="demo123", role=ROLE_PLAYER, phone="+961 70 000 004", emergency_contact="+961 70 100 004", date_of_birth=date(2006, 6, 20), attendance_rate=88, payment_status="Overdue", next_payment_date=date.today() - timedelta(days=7), joined_at=date(2025, 9, 9), team_id=teams[2].id, position="Outside Hitter", last_active_at=datetime.utcnow() - timedelta(days=1, hours=1)),
+        User(full_name="Mira Haddad", email="mira@volleyops.test", password="demo123", role=ROLE_COACH, phone="+961 70 000 005", joined_at=date(2025, 9, 4), payment_status="Paid", team_id=teams[1].id, position="Assistant Coach", last_active_at=datetime.utcnow() - timedelta(hours=6)),
+        User(full_name="Lana Khoury", email="lana@volleyops.test", password="demo123", role=ROLE_PLAYER, phone="+961 70 000 006", emergency_contact="+961 70 100 006", date_of_birth=date(2008, 11, 4), attendance_rate=97, payment_status="Paid", next_payment_date=date.today() + timedelta(days=30), joined_at=date(2025, 9, 12), team_id=teams[1].id, position="Middle Blocker", last_active_at=datetime.utcnow() - timedelta(minutes=35)),
     ]
     db.session.add_all(users)
     db.session.flush()
@@ -148,8 +149,8 @@ def demo_login_payload():
         {
             "email": user.email,
             "password": user.password,
-            "role": user.role,
-            "accessToken": create_access_token(identity=str(user.id), additional_claims={"role": user.role}),
+            "role": normalize_role(user.role),
+            "accessToken": create_access_token(identity=str(user.id), additional_claims={"role": normalize_role(user.role)}),
         }
         for user in users
     ]

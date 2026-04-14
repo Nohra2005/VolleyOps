@@ -1,7 +1,9 @@
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required
 
 from extensions import db
 from model import Play
+from services.access_control import ROLE_COACH, ROLE_MANAGER, current_user_or_error
 
 play_bp = Blueprint("play", __name__, url_prefix="/api/plays")
 
@@ -21,12 +23,20 @@ def serialize_play(play):
 
 
 @play_bp.get("")
+@jwt_required()
 def list_plays():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
     return jsonify([serialize_play(play) for play in Play.query.order_by(Play.updated_at.desc()).all()])
 
 
 @play_bp.post("")
+@jwt_required()
 def create_play():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
     payload = request.get_json(silent=True) or {}
     play = Play(
         name=payload["name"].strip(),
@@ -44,7 +54,11 @@ def create_play():
 
 
 @play_bp.post("/<int:play_id>/duplicate")
+@jwt_required()
 def duplicate_play(play_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
     original = Play.query.get_or_404(play_id)
     duplicated = Play(
         name=f"{original.name} Copy",

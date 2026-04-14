@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUser } from '../UserContextCore';
 import logo from '../assets/logo.png';
 import { apiFetch, formatApiDate } from '../lib/api';
+import { ROLES, normalizeRole } from '../permissions';
 import './ClubManagement.css';
 
 // ── No hardcoded initial data — lists start empty ─────────────────────────────
@@ -32,6 +33,7 @@ const IconChevR  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="n
 export default function ClubManagement() {
   const navigate = useNavigate();
   const user     = useUser();
+  const normalizedRole = normalizeRole(user.role);
 
   const [activeTab,    setActiveTab]    = useState('Players');
   const [searchQuery,  setSearchQuery]  = useState('');
@@ -78,11 +80,11 @@ export default function ClubManagement() {
     try {
       setLoading(true);
       const [membersData, teamsData] = await Promise.all([
-        apiFetch('/api/members'),
-        apiFetch('/api/teams'),
+        apiFetch('/api/members', { token: user.token }),
+        apiFetch('/api/teams', { token: user.token }),
       ]);
-      setPlayers((membersData || []).filter(member => member.role === 'ATHLETE'));
-      setCoaches((membersData || []).filter(member => member.role === 'COACH'));
+      setPlayers((membersData || []).filter(member => normalizeRole(member.role) === ROLES.PLAYER));
+      setCoaches((membersData || []).filter(member => normalizeRole(member.role) === ROLES.COACH));
       setTeams(teamsData || []);
       setError('');
     } catch (err) {
@@ -94,7 +96,7 @@ export default function ClubManagement() {
 
   useEffect(() => {
     loadMembers();
-  }, []);
+  }, [user.token]);
 
   const openAdd  = () => {
     setFormData({ name:'', email:'', phone:'', emergencyContact:'', dateOfBirth:'', teamId:'', position:'', attendanceRate:'', payment:'Paid', nextPayment:'' });
@@ -106,7 +108,7 @@ export default function ClubManagement() {
   };
   const deleteMember = async (id) => {
     try {
-      await apiFetch(`/api/members/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/members/${id}`, { method: 'DELETE', token: user.token });
       await loadMembers();
     } catch (err) {
       setError(err.message);
@@ -117,18 +119,20 @@ export default function ClubManagement() {
     e.preventDefault();
     const payload = {
       ...formData,
-      role: activeTab === 'Players' ? 'ATHLETE' : 'COACH',
+      role: activeTab === 'Players' ? ROLES.PLAYER : ROLES.COACH,
       teamId: formData.teamId ? Number(formData.teamId) : null,
     };
     try {
       if (modal.mode === 'add') {
         await apiFetch('/api/members', {
           method: 'POST',
+          token: user.token,
           body: JSON.stringify(payload),
         });
       } else {
         await apiFetch(`/api/members/${modal.member.id}`, {
           method: 'PUT',
+          token: user.token,
           body: JSON.stringify(payload),
         });
       }
@@ -145,6 +149,7 @@ export default function ClubManagement() {
   try {
     await apiFetch('/api/teams', {
       method: 'POST',
+      token: user.token,
       body: JSON.stringify(teamFormData),
     });
     // Reload data so the new team appears in the select dropdowns
@@ -204,7 +209,7 @@ export default function ClubManagement() {
         
         <div style={{ display: 'flex', gap: '10px' }}>
           {/* Conditionally render Add Team based on Role */}
-          {(user.role === 'MANAGER' || user.role === 'COACH' || user.role === 'Admin') && (
+          {(normalizedRole === ROLES.MANAGER || normalizedRole === ROLES.COACH) && (
             <button className="cm-add-btn" onClick={() => setTeamModalOpen(true)}>+ Add Team</button>
           )}
           <button className="cm-add-btn" onClick={openAdd}>+ Add Member</button>

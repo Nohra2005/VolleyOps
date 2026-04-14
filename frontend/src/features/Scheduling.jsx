@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/logo.png';
+import { useUser } from '../UserContextCore';
 import { apiFetch } from '../lib/api';
+import { canEditScheduling } from '../permissions';
 import './Scheduling.css';
 
 const START_HOUR = 8;
@@ -61,6 +63,8 @@ const eventOccursOnDay = (event, dayColumn) => {
 
 export default function Scheduling() {
   const navigate = useNavigate();
+  const user = useUser();
+  const canManageBookings = canEditScheduling(user.role);
   const [selectedCourt, setSelectedCourt] = useState('Court 1');
   const [selectedDate, setSelectedDate] = useState(getMonday(new Date()));
   const [currentMiniMonth, setCurrentMiniMonth] = useState(
@@ -183,7 +187,7 @@ export default function Scheduling() {
   const loadBookings = async () => {
     try {
       setLoading(true);
-      const data = await apiFetch(`/api/bookings?weekStart=${weekStartIso}`);
+      const data = await apiFetch(`/api/bookings?weekStart=${weekStartIso}`, { token: user.token });
       setEvents(data || []);
       setError('');
     } catch (err) {
@@ -238,7 +242,7 @@ export default function Scheduling() {
   useEffect(() => {
     const loadBootstrap = async () => {
       try {
-        const data = await apiFetch('/api/bootstrap');
+        const data = await apiFetch('/api/bootstrap', { token: user.token });
         const bootstrapFacilities = data.facilities || [];
         const bootstrapTeams = data.teams || [];
 
@@ -260,11 +264,11 @@ export default function Scheduling() {
     };
 
     loadBootstrap();
-  }, []);
+  }, [user.token]);
 
   useEffect(() => {
     loadBookings();
-  }, [weekStartIso]);
+  }, [weekStartIso, user.token]);
 
   useEffect(() => {
     if (!notifyToast) return undefined;
@@ -286,6 +290,9 @@ export default function Scheduling() {
   }, [isModalOpen]);
 
   const handleEventClick = (event, dayColumn) => {
+    if (!canManageBookings) {
+      return;
+    }
     setDeleteModal({ open: true, event, instanceDate: dayColumn.fullDate });
   };
 
@@ -297,7 +304,7 @@ export default function Scheduling() {
           ? ''
           : `?mode=instance&instanceDate=${toIsoDate(instanceDate)}`;
 
-      await apiFetch(`/api/bookings/${event.id}${query}`, { method: 'DELETE' });
+      await apiFetch(`/api/bookings/${event.id}${query}`, { method: 'DELETE', token: user.token });
       await loadBookings();
       setError('');
     } catch (err) {
@@ -399,6 +406,7 @@ export default function Scheduling() {
 
       await apiFetch('/api/bookings', {
         method: 'POST',
+        token: user.token,
         body: JSON.stringify({
           title: formData.title.trim(),
           facility_id: selectedFacility.id,
@@ -437,9 +445,11 @@ export default function Scheduling() {
           <h1 className="sidebar-title">SCHEDULING</h1>
         </div>
 
-        <button className="create-booking-btn" onClick={() => openCreateModal()}>
-          <span>+</span> Create Booking
-        </button>
+        {canManageBookings && (
+          <button className="create-booking-btn" onClick={() => openCreateModal()}>
+            <span>+</span> Create Booking
+          </button>
+        )}
 
         <div className="court-filters">
           {facilities.map(({ name: court }) => (
@@ -591,7 +601,7 @@ export default function Scheduling() {
                     <div
                       key={`${event.id}-${dayColumn.iso}`}
                       className={`event-card ${event.color}`}
-                      title="Click to delete"
+                      title={canManageBookings ? 'Click to delete' : event.title}
                       style={{
                         top: `${(event.startHour - START_HOUR) * ROW_HEIGHT}px`,
                         height: `${(event.endHour - event.startHour) * ROW_HEIGHT}px`,
@@ -610,7 +620,7 @@ export default function Scheduling() {
         </div>
       </main>
 
-      {deleteModal.open && (
+      {canManageBookings && deleteModal.open && (
         <div className="modal-overlay" onClick={closeDelete}>
           <div
             className="modal-content delete-modal"
@@ -666,7 +676,7 @@ export default function Scheduling() {
         </div>
       )}
 
-      {isModalOpen && (
+      {canManageBookings && isModalOpen && (
         <div className="modal-overlay" onClick={closeCreateModal}>
           <div
             className="modal-content scheduling-modal"

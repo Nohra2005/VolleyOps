@@ -79,3 +79,10 @@ FLUSH PRIVILEGES;
 - Coach iBoard (plays)
 - Athlete Stats (match stats and derived metrics)
 - Communications (channels/messages)
+
+## Role model
+- `MANAGER`: all 5 main features plus the user-management page
+- `COACH`: all 5 main features
+- `PLAYER`: communication, scheduling view, and athlete stats
+
+Legacy `ADMIN` and `ATHLETE` records are normalized to `MANAGER` and `PLAYER` on startup.

@@ -69,7 +69,7 @@ export default function AuthModal({ open, onClose }) {
           <h2>{isSignup ? 'Create your account' : 'Welcome back'}</h2>
           <p>
             {isSignup
-              ? 'New users start as athletes. Admins can update roles from the Users page.'
+              ? 'New users start as players. Managers can update roles from the Users page.'
               : 'Sign in to switch accounts or continue with your current team workspace.'}
           </p>
         </div>

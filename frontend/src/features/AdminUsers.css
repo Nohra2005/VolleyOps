@@ -177,10 +177,9 @@
   font-size: 12px;
   font-weight: 900;
 }
-.role-admin { background: #e0f2fe; color: #0369a1; }
 .role-manager { background: #fef9c3; color: #a16207; }
 .role-coach { background: #dcfce7; color: #15803d; }
-.role-athlete { background: #f0f4ff; color: #5c6ab0; }
+.role-player { background: #f0f4ff; color: #5c6ab0; }
 .admin-users-table select {
   min-width: 150px;
   border: 2px solid #f1f5f9;

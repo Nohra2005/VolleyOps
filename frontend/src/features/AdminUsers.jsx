@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import { useUser } from '../UserContextCore';
 import { apiFetch } from '../lib/api';
+import { ROLES, canManageUsers, normalizeRole } from '../permissions';
 import './AdminUsers.css';
 
-const ROLES = ['ADMIN', 'MANAGER', 'COACH', 'ATHLETE'];
+const ASSIGNABLE_ROLES = [ROLES.MANAGER, ROLES.COACH, ROLES.PLAYER];
 
 const roleLabel = (role) => role.charAt(0) + role.slice(1).toLowerCase();
 
@@ -27,7 +28,7 @@ export default function AdminUsers() {
   const [savingId, setSavingId] = useState(null);
   const [error, setError] = useState('');
 
-  const isAdmin = user.role === 'ADMIN';
+  const isManager = canManageUsers(user.role);
 
   const filteredUsers = useMemo(
     () =>
@@ -41,7 +42,7 @@ export default function AdminUsers() {
   );
 
   const loadUsers = useCallback(async () => {
-    if (!isAdmin || !user.token) {
+    if (!isManager || !user.token) {
       setLoading(false);
       return;
     }
@@ -56,7 +57,7 @@ export default function AdminUsers() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, user.token]);
+  }, [isManager, user.token]);
 
   useEffect(() => {
     loadUsers();
@@ -100,10 +101,10 @@ export default function AdminUsers() {
         </div>
       </header>
 
-      {!isAdmin ? (
+      {!isManager ? (
         <section className="admin-users-locked">
-          <h2>Admin access required</h2>
-          <p>Only admins can manage user roles.</p>
+          <h2>Manager access required</h2>
+          <p>Only managers can manage user roles.</p>
           <button type="button" onClick={() => navigate('/')}>Return home</button>
         </section>
       ) : (
@@ -111,7 +112,7 @@ export default function AdminUsers() {
           <div className="admin-users-toolbar">
             <div>
               <p>Role Control</p>
-              <h2>Assign coach, manager, athlete, and admin access.</h2>
+              <h2>Assign manager, coach, and player access.</h2>
             </div>
             <input
               type="search"
@@ -154,14 +155,14 @@ export default function AdminUsers() {
                         </td>
                         <td>{item.email}</td>
                         <td>{item.team || 'No team'}</td>
-                        <td><span className={`admin-users-role role-${item.role.toLowerCase()}`}>{roleLabel(item.role)}</span></td>
+                        <td><span className={`admin-users-role role-${normalizeRole(item.role).toLowerCase()}`}>{roleLabel(normalizeRole(item.role))}</span></td>
                         <td>
                           <select
-                            value={item.role}
+                            value={normalizeRole(item.role)}
                             disabled={savingId === item.id}
                             onChange={(event) => updateRole(item, event.target.value)}
                           >
-                            {ROLES.map((role) => (
+                            {ASSIGNABLE_ROLES.map((role) => (
                               <option key={role} value={role}>{roleLabel(role)}</option>
                             ))}
                           </select>
