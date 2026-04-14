@@ -1,16 +1,43 @@
-# React + Vite
+# React + Vite (VolleyOps frontend)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This project uses Vite + React. The dev server proxies `/api` to `http://localhost:5000` by default (see `vite.config.js`).
 
-Currently, two official plugins are available:
+Prerequisites
+- Node.js 18+ and `npm` or `yarn`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Install and run
 
-## React Compiler
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The dev server runs on `http://localhost:5173` by default. The client uses relative `/api` paths (see `src/lib/api.js`), so the proxy in `vite.config.js` forwards those requests to the backend during development.
 
-## Expanding the ESLint configuration
+Changing the API host
+- If your backend is on a different host/port in development, update the proxy in `vite.config.js` or change `src/lib/api.js` to prepend an absolute base URL.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Example: use an environment variable `VITE_API_BASE` and update `apiFetch` in `src/lib/api.js`:
+
+```js
+// at top of src/lib/api.js
+const BASE = import.meta.env.VITE_API_BASE || '';
+
+// then call fetch(BASE + path, ...)
+```
+
+Production build
+
+```bash
+npm run build
+npm run preview
+```
+
+Linting
+
+```bash
+npm run lint
+```
+
+If you want, I can add a short `.env.example` in the frontend or add a `concurrently` script to run frontend and backend together.
