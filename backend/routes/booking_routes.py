@@ -4,7 +4,12 @@ from flask import Blueprint, jsonify, request
 
 from extensions import db
 from model import Booking
-from services.booking_service import create_booking, delete_booking_instance, parse_date, serialize_booking
+from services.booking_service import (
+    create_booking,
+    delete_booking_instance,
+    parse_date,
+    serialize_booking,
+)
 
 booking_bp = Blueprint("booking", __name__, url_prefix="/api/bookings")
 
@@ -20,13 +25,22 @@ def list_bookings():
     if court:
         query = query.join(Booking.facility).filter_by(name=court)
 
-    bookings = query.order_by(Booking.start_hour.asc()).all()
+    bookings = query.order_by(Booking.start_hour.asc(), Booking.id.asc()).all()
     serialized = []
+
     for booking in bookings:
-        if week_start and week_end and not booking.is_recurring:
-            if not booking.specific_date or not (week_start <= booking.specific_date <= week_end):
-                continue
+        if week_start and week_end:
+            if booking.is_recurring:
+                recurrence_start = booking.recurrence_start_date or week_start
+                recurrence_end = booking.recurrence_end_date or week_end
+                if recurrence_end < week_start or recurrence_start > week_end:
+                    continue
+            else:
+                if not booking.specific_date or not (week_start <= booking.specific_date <= week_end):
+                    continue
+
         serialized.append(serialize_booking(booking))
+
     return jsonify(serialized)
 
 

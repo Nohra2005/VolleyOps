@@ -1,6 +1,7 @@
 import os
 
 from flask import Flask, jsonify
+from sqlalchemy import inspect, text
 
 from db_config import DB_CONFIG, ensure_database_exists
 from extensions import cors, db, jwt, ma
@@ -45,8 +46,51 @@ def demo_logins():
     return jsonify(demo_login_payload())
 
 
+def ensure_booking_schema_updates():
+    inspector = inspect(db.engine)
+    if "booking" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("booking")}
+    statements = []
+
+    if "recurrence_start_date" not in columns:
+        statements.append(
+            "ALTER TABLE booking ADD COLUMN recurrence_start_date DATE NULL"
+        )
+    if "recurrence_end_date" not in columns:
+        statements.append(
+            "ALTER TABLE booking ADD COLUMN recurrence_end_date DATE NULL"
+        )
+    if "notify_team" not in columns:
+        statements.append(
+            "ALTER TABLE booking ADD COLUMN notify_team BOOLEAN NOT NULL DEFAULT 0"
+        )
+
+    if not statements:
+        return
+
+    with db.engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+        connection.execute(
+            text(
+                """
+                UPDATE booking
+                SET recurrence_start_date = specific_date
+                WHERE is_recurring = 1
+                  AND recurrence_start_date IS NULL
+                  AND specific_date IS NOT NULL
+                """
+            )
+        )
+
+
 with app.app_context():
     db.create_all()
+    ensure_booking_schema_updates()
+
     if model.User.query.count() > 0 and model.User.query.filter_by(role="ADMIN").count() == 0:
         first_user = model.User.query.order_by(model.User.id.asc()).first()
         first_user.role = "ADMIN"

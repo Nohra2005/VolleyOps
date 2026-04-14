@@ -4,11 +4,17 @@ import logo from '../assets/logo.png';
 import { apiFetch } from '../lib/api';
 import './Scheduling.css';
 
+const START_HOUR = 8;
+const END_HOUR = 22;
+const ROW_HEIGHT = 100;
+
 const getMonday = (date) => {
   const d = new Date(date);
+  d.setHours(12, 0, 0, 0);
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
+  d.setDate(diff);
+  return d;
 };
 
 const isSameDay = (a, b) =>
@@ -18,6 +24,40 @@ const isSameDay = (a, b) =>
 
 const isDateInSameWeek = (dateA, dateB) =>
   isSameDay(getMonday(dateA), getMonday(dateB));
+
+const toIsoDate = (value) => {
+  const date = value instanceof Date ? new Date(value) : new Date(value);
+  date.setHours(12, 0, 0, 0);
+  return date.toISOString().slice(0, 10);
+};
+
+const formatHourLabel = (hour) => {
+  if (hour === 12) return '12 PM';
+  if (hour > 12) return `${hour - 12} PM`;
+  return `${hour} AM`;
+};
+
+const getDefaultCreateDate = () => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  return toIsoDate(date);
+};
+
+const eventOccursOnDay = (event, dayColumn) => {
+  if (event.isRecurring) {
+    const exceptions = event.exceptions || [];
+    const recurrenceStart = event.recurrenceStartDate;
+    const recurrenceEnd = event.recurrenceEndDate;
+
+    if (event.dayOfWeek !== dayColumn.value) return false;
+    if (recurrenceStart && dayColumn.iso < recurrenceStart) return false;
+    if (recurrenceEnd && dayColumn.iso > recurrenceEnd) return false;
+    if (exceptions.includes(dayColumn.iso)) return false;
+    return true;
+  }
+
+  return event.specificDate === dayColumn.iso;
+};
 
 export default function Scheduling() {
   const navigate = useNavigate();
@@ -31,6 +71,8 @@ export default function Scheduling() {
   const [teams, setTeams] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notifyToast, setNotifyToast] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -42,6 +84,10 @@ export default function Scheduling() {
     color: 'blue',
     isRecurring: true,
     court: 'Court 1',
+    bookingDate: getDefaultCreateDate(),
+    recurrenceStartDate: getDefaultCreateDate(),
+    recurrenceEndDate: '',
+    notifyTeam: false,
   });
 
   const [deleteModal, setDeleteModal] = useState({
@@ -50,17 +96,15 @@ export default function Scheduling() {
     instanceDate: null,
   });
 
-  const START_HOUR = 8;
-  const END_HOUR = 22;
-  const ROW_HEIGHT = 100;
+  const hours = useMemo(() => {
+    const list = [];
+    for (let i = START_HOUR; i <= END_HOUR; i += 1) {
+      list.push({ label: formatHourLabel(i), value: i });
+    }
+    return list;
+  }, []);
 
-  const hours = [];
-  for (let i = START_HOUR; i <= END_HOUR; i++) {
-    const label = i === 12 ? '12 PM' : i > 12 ? `${i - 12} PM` : `${i} AM`;
-    hours.push({ label, value: i });
-  }
-
-  const currentMonday = getMonday(selectedDate);
+  const currentMonday = useMemo(() => getMonday(selectedDate), [selectedDate]);
 
   const currentSunday = useMemo(() => {
     const d = new Date(currentMonday);
@@ -93,36 +137,76 @@ export default function Scheduling() {
     })} ${currentSunday.getDate()}, ${currentSunday.getFullYear()}`;
   }, [currentMonday, currentSunday]);
 
-  const mainCalendarDays = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date(currentMonday);
-    d.setDate(currentMonday.getDate() + i);
-    return {
-      name: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
-      date: d.getDate().toString(),
-      value: i + 1,
-      active: d.toDateString() === new Date().toDateString(),
-      fullDate: d,
+  const mainCalendarDays = useMemo(
+    () =>
+      Array.from({ length: 7 }).map((_, i) => {
+        const d = new Date(currentMonday);
+        d.setDate(currentMonday.getDate() + i);
+        d.setHours(12, 0, 0, 0);
+        return {
+          name: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+          date: d.getDate().toString(),
+          value: i + 1,
+          active: isSameDay(d, new Date()),
+          fullDate: d,
+          iso: toIsoDate(d),
+        };
+      }),
+    [currentMonday]
+  );
+
+  const weekStartIso = useMemo(() => toIsoDate(currentMonday), [currentMonday]);
+
+  const getDefaultFormData = (courtOverride) => {
+    const fallbackCourt = courtOverride || selectedCourt || facilities[0]?.name || 'Court 1';
+    const firstDay = mainCalendarDays[0] || {
+      value: 1,
+      iso: getDefaultCreateDate(),
     };
-  });
 
-  const getDefaultFormData = () => ({
-    title: '',
-    teamId: teams[0] ? String(teams[0].id) : '',
-    day: 1,
-    startHour: 9,
-    endHour: 11,
-    color: 'blue',
-    isRecurring: true,
-    court: selectedCourt || facilities[0]?.name || 'Court 1',
-  });
+    return {
+      title: '',
+      teamId: teams[0] ? String(teams[0].id) : '',
+      day: firstDay.value,
+      startHour: 9,
+      endHour: 11,
+      color: 'blue',
+      isRecurring: true,
+      court: fallbackCourt,
+      bookingDate: firstDay.iso,
+      recurrenceStartDate: firstDay.iso,
+      recurrenceEndDate: '',
+      notifyTeam: false,
+    };
+  };
 
-  const openCreateModal = () => {
-    setFormData(getDefaultFormData());
+  const loadBookings = async () => {
+    try {
+      setLoading(true);
+      const data = await apiFetch(`/api/bookings?weekStart=${weekStartIso}`);
+      setEvents(data || []);
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openCreateModal = (prefillDay = null) => {
+    const defaults = getDefaultFormData();
+    if (prefillDay) {
+      defaults.day = prefillDay.value;
+      defaults.bookingDate = prefillDay.iso;
+      defaults.recurrenceStartDate = prefillDay.iso;
+    }
+    setFormData(defaults);
     setIsModalOpen(true);
   };
 
   const closeCreateModal = () => {
     setIsModalOpen(false);
+    setSaving(false);
     setFormData(getDefaultFormData());
   };
 
@@ -151,47 +235,42 @@ export default function Scheduling() {
     setCurrentMiniMonth(new Date(today.getFullYear(), today.getMonth(), 1));
   };
 
-  const weekStartIso = useMemo(
-    () => currentMonday.toISOString().slice(0, 10),
-    [currentMonday]
-  );
-
   useEffect(() => {
     const loadBootstrap = async () => {
       try {
         const data = await apiFetch('/api/bootstrap');
-        setFacilities(data.facilities || []);
-        setTeams(data.teams || []);
-        if ((data.facilities || []).length > 0) {
-          setSelectedCourt((prev) => prev || data.facilities[0].name);
+        const bootstrapFacilities = data.facilities || [];
+        const bootstrapTeams = data.teams || [];
+
+        setFacilities(bootstrapFacilities);
+        setTeams(bootstrapTeams);
+
+        if (bootstrapFacilities.length > 0) {
+          const firstCourt = bootstrapFacilities[0].name;
+          setSelectedCourt((prev) => prev || firstCourt);
           setFormData((prev) => ({
             ...prev,
-            court: prev.court || data.facilities[0].name,
-            teamId: prev.teamId || String(data.teams?.[0]?.id || ''),
+            court: prev.court || firstCourt,
+            teamId: prev.teamId || String(bootstrapTeams?.[0]?.id || ''),
           }));
         }
       } catch (err) {
         setError(err.message);
       }
     };
+
     loadBootstrap();
   }, []);
 
   useEffect(() => {
-    const loadBookings = async () => {
-      try {
-        setLoading(true);
-        const data = await apiFetch(`/api/bookings?weekStart=${weekStartIso}`);
-        setEvents(data || []);
-        setError('');
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadBookings();
   }, [weekStartIso]);
+
+  useEffect(() => {
+    if (!notifyToast) return undefined;
+    const timer = window.setTimeout(() => setNotifyToast(''), 2500);
+    return () => window.clearTimeout(timer);
+  }, [notifyToast]);
 
   useEffect(() => {
     if (!isModalOpen) return undefined;
@@ -204,7 +283,7 @@ export default function Scheduling() {
 
     window.addEventListener('keydown', handleEscapeKey);
     return () => window.removeEventListener('keydown', handleEscapeKey);
-  }, [isModalOpen, selectedCourt, facilities, teams]);
+  }, [isModalOpen]);
 
   const handleEventClick = (event, dayColumn) => {
     setDeleteModal({ open: true, event, instanceDate: dayColumn.fullDate });
@@ -216,13 +295,10 @@ export default function Scheduling() {
       const query =
         mode === 'all'
           ? ''
-          : `?mode=instance&instanceDate=${instanceDate
-              .toISOString()
-              .slice(0, 10)}`;
+          : `?mode=instance&instanceDate=${toIsoDate(instanceDate)}`;
 
       await apiFetch(`/api/bookings/${event.id}${query}`, { method: 'DELETE' });
-      const refreshed = await apiFetch(`/api/bookings?weekStart=${weekStartIso}`);
-      setEvents(refreshed || []);
+      await loadBookings();
       setError('');
     } catch (err) {
       setError(err.message);
@@ -241,7 +317,7 @@ export default function Scheduling() {
     const daysInPrevMonth = new Date(year, month, 0).getDate();
     const cells = [];
 
-    for (let i = 0; i < firstDay; i++) {
+    for (let i = 0; i < firstDay; i += 1) {
       cells.push({
         day: daysInPrevMonth - firstDay + i + 1,
         current: false,
@@ -249,7 +325,7 @@ export default function Scheduling() {
       });
     }
 
-    for (let i = 1; i <= daysInMonth; i++) {
+    for (let i = 1; i <= daysInMonth; i += 1) {
       cells.push({ day: i, current: true, date: new Date(year, month, i) });
     }
 
@@ -265,40 +341,91 @@ export default function Scheduling() {
     return cells;
   };
 
+  const handleRecurringStartChange = (value) => {
+    const nextDate = new Date(value);
+    nextDate.setHours(12, 0, 0, 0);
+    const weekday = nextDate.getDay();
+    const normalizedWeekday = weekday === 0 ? 7 : weekday;
+
+    setFormData((prev) => ({
+      ...prev,
+      recurrenceStartDate: value,
+      day: normalizedWeekday,
+      recurrenceEndDate:
+        prev.recurrenceEndDate && prev.recurrenceEndDate < value ? value : prev.recurrenceEndDate,
+    }));
+  };
+
+  const handleQuickRange = (weeks) => {
+    if (!formData.recurrenceStartDate) return;
+    const start = new Date(formData.recurrenceStartDate);
+    start.setHours(12, 0, 0, 0);
+    start.setDate(start.getDate() + weeks * 7);
+    setFormData((prev) => ({
+      ...prev,
+      recurrenceEndDate: toIsoDate(start),
+    }));
+  };
+
+  const handleNotifyTeamClick = () => {
+    const teamName = teams.find((team) => String(team.id) === String(formData.teamId))?.name;
+    setNotifyToast(
+      teamName
+        ? `Notify team placeholder ready for ${teamName}.`
+        : 'Notify team placeholder button is ready for backend logic.'
+    );
+  };
+
   const handleCreateBooking = async (e) => {
     e.preventDefault();
+
+    const selectedFacility = facilities.find(
+      (item) => item.name === formData.court
+    );
+
+    if (!selectedFacility?.id) {
+      setError('Please choose a valid court.');
+      return;
+    }
+
+    const recurringStart = formData.recurrenceStartDate || formData.bookingDate;
+    const recurringDate = new Date(recurringStart);
+    recurringDate.setHours(12, 0, 0, 0);
+    const recurringWeekday = recurringDate.getDay();
+    const dayOfWeek = recurringWeekday === 0 ? 7 : recurringWeekday;
+
     try {
-      const selectedFacility = facilities.find(
-        (item) => item.name === formData.court
-      );
-      const selectedDay = mainCalendarDays.find(
-        (d) => d.value === Number(formData.day)
-      );
+      setSaving(true);
 
       await apiFetch('/api/bookings', {
         method: 'POST',
         body: JSON.stringify({
-          title: formData.title,
-          facility_id: selectedFacility?.id,
+          title: formData.title.trim(),
+          facility_id: selectedFacility.id,
           team_id: formData.teamId ? Number(formData.teamId) : null,
-          day_of_week: formData.isRecurring ? Number(formData.day) : null,
-          specific_date: formData.isRecurring
-            ? null
-            : selectedDay?.fullDate.toISOString().slice(0, 10),
+          day_of_week: formData.isRecurring ? dayOfWeek : null,
+          specific_date: formData.isRecurring ? null : formData.bookingDate,
+          recurrence_start_date: formData.isRecurring ? formData.recurrenceStartDate : null,
+          recurrence_end_date:
+            formData.isRecurring && formData.recurrenceEndDate
+              ? formData.recurrenceEndDate
+              : null,
           start_hour: Number(formData.startHour),
           end_hour: Number(formData.endHour),
           color: formData.color,
           is_recurring: formData.isRecurring,
-          anchor_date: selectedDay?.fullDate.toISOString().slice(0, 10),
+          anchor_date: formData.isRecurring ? formData.recurrenceStartDate : formData.bookingDate,
+          notify_team: formData.notifyTeam,
         }),
       });
 
-      const refreshed = await apiFetch(`/api/bookings?weekStart=${weekStartIso}`);
-      setEvents(refreshed || []);
+      await loadBookings();
       closeCreateModal();
       setError('');
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -310,7 +437,7 @@ export default function Scheduling() {
           <h1 className="sidebar-title">SCHEDULING</h1>
         </div>
 
-        <button className="create-booking-btn" onClick={openCreateModal}>
+        <button className="create-booking-btn" onClick={() => openCreateModal()}>
           <span>+</span> Create Booking
         </button>
 
@@ -457,18 +584,12 @@ export default function Scheduling() {
 
                 {events
                   .filter(
-                    (e) =>
-                      e.court === selectedCourt &&
-                      (e.isRecurring
-                        ? e.dayOfWeek === dayColumn.value &&
-                          !(e.exceptions || []).includes(
-                            dayColumn.fullDate.toDateString()
-                          )
-                        : e.specificDate === dayColumn.fullDate.toDateString())
+                    (event) =>
+                      event.court === selectedCourt && eventOccursOnDay(event, dayColumn)
                   )
                   .map((event) => (
                     <div
-                      key={event.id}
+                      key={`${event.id}-${dayColumn.iso}`}
                       className={`event-card ${event.color}`}
                       title="Click to delete"
                       style={{
@@ -478,7 +599,9 @@ export default function Scheduling() {
                       onClick={() => handleEventClick(event, dayColumn)}
                     >
                       <span className="event-title">{event.title}</span>
-                      <span className="delete-hint">Click to delete</span>
+                      <span className="delete-hint">
+                        {event.isRecurring ? 'Recurring booking' : 'One-time booking'}
+                      </span>
                     </div>
                   ))}
               </div>
@@ -500,7 +623,7 @@ export default function Scheduling() {
               <>
                 <p className="delete-modal-desc">
                   This is a <strong>recurring event</strong>. Remove only this
-                  week's occurrence, or all future instances?
+                  occurrence, or delete the full recurring booking?
                 </p>
                 <div className="delete-modal-actions">
                   <button className="cancel-btn" onClick={closeDelete}>
@@ -516,7 +639,7 @@ export default function Scheduling() {
                     className="delete-all-btn"
                     onClick={() => confirmDelete('all')}
                   >
-                    All recurring instances
+                    Full series
                   </button>
                 </div>
               </>
@@ -546,7 +669,7 @@ export default function Scheduling() {
       {isModalOpen && (
         <div className="modal-overlay" onClick={closeCreateModal}>
           <div
-            className="modal-content"
+            className="modal-content scheduling-modal"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -586,6 +709,7 @@ export default function Scheduling() {
                     setFormData({ ...formData, teamId: e.target.value })
                   }
                 >
+                  <option value="">No team</option>
                   {teams.map((team) => (
                     <option key={team.id} value={team.id}>
                       {team.name}
@@ -622,23 +746,70 @@ export default function Scheduling() {
                 <label htmlFor="recurring">Repeat weekly</label>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Day</label>
-                  <select
-                    value={formData.day}
-                    onChange={(e) =>
-                      setFormData({ ...formData, day: e.target.value })
-                    }
-                  >
-                    {mainCalendarDays.map((d) => (
-                      <option key={d.value} value={d.value}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {formData.isRecurring ? (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Start Date</label>
+                      <input
+                        type="date"
+                        required
+                        value={formData.recurrenceStartDate}
+                        onChange={(e) => handleRecurringStartChange(e.target.value)}
+                      />
+                    </div>
 
+                    <div className="form-group">
+                      <label>End Date</label>
+                      <input
+                        type="date"
+                        min={formData.recurrenceStartDate}
+                        value={formData.recurrenceEndDate}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            recurrenceEndDate: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="quick-range-row">
+                    <button type="button" onClick={() => handleQuickRange(4)}>
+                      +4 weeks
+                    </button>
+                    <button type="button" onClick={() => handleQuickRange(8)}>
+                      +8 weeks
+                    </button>
+                    <button type="button" onClick={() => handleQuickRange(12)}>
+                      +12 weeks
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, recurrenceEndDate: '' })
+                      }
+                    >
+                      No end
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="form-group">
+                  <label>Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.bookingDate}
+                    onChange={(e) =>
+                      setFormData({ ...formData, bookingDate: e.target.value })
+                    }
+                  />
+                </div>
+              )}
+
+              <div className="form-row">
                 <div className="form-group">
                   <label>Color</label>
                   <select
@@ -652,9 +823,7 @@ export default function Scheduling() {
                     <option value="purple">Purple</option>
                   </select>
                 </div>
-              </div>
 
-              <div className="form-row">
                 <div className="form-group">
                   <label>Start</label>
                   <select
@@ -688,7 +857,28 @@ export default function Scheduling() {
                 </div>
               </div>
 
-              <div className="modal-actions">
+              <div className="notify-row">
+                <label className="notify-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={formData.notifyTeam}
+                    onChange={(e) =>
+                      setFormData({ ...formData, notifyTeam: e.target.checked })
+                    }
+                  />
+                  <span>Save "notify team" flag</span>
+                </label>
+
+                <button
+                  type="button"
+                  className="notify-team-btn"
+                  onClick={handleNotifyTeamClick}
+                >
+                  Notify Team
+                </button>
+              </div>
+
+              <div className="modal-actions sticky-modal-actions">
                 <button
                   type="button"
                   className="cancel-btn"
@@ -696,14 +886,16 @@ export default function Scheduling() {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="save-btn">
-                  Save
+                <button type="submit" className="save-btn" disabled={saving}>
+                  {saving ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {notifyToast && <div className="notify-toast">{notifyToast}</div>}
     </div>
   );
 }
