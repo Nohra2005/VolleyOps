@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUser } from '../UserContext';
+import { useUser } from '../UserContextCore';
 import logo from '../assets/logo.png';
 import { apiFetch, formatApiDate } from '../lib/api';
 import './ClubManagement.css';

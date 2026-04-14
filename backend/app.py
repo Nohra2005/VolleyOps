@@ -5,7 +5,7 @@ from flask import Flask, jsonify
 from db_config import DB_CONFIG, ensure_database_exists
 from extensions import cors, db, jwt, ma
 from routes import register_blueprints
-from services.seed_service import demo_login_payload, seed_database
+from services.seed_service import demo_login_payload
 import model
 
 ensure_database_exists()
@@ -47,7 +47,11 @@ def demo_logins():
 
 with app.app_context():
     db.create_all()
-    seed_database()
+    if model.User.query.count() > 0 and model.User.query.filter_by(role="ADMIN").count() == 0:
+        first_user = model.User.query.order_by(model.User.id.asc()).first()
+        first_user.role = "ADMIN"
+        db.session.commit()
+    # seed_database() is intentionally disabled; create users through signup/admin UI.
 
 
 if __name__ == "__main__":

@@ -72,36 +72,37 @@ const deepClonePlay = (play) => ({
   drawings: play.drawings.map((drawing) => ({ ...drawing })),
 });
 
+const readStoredBoard = () => {
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (!saved) return { plays: DEFAULT_PLAYS, selectedPlayId: DEFAULT_PLAYS[0].id };
+
+    const parsed = JSON.parse(saved);
+    if (
+      parsed &&
+      Array.isArray(parsed.plays) &&
+      parsed.plays.length > 0 &&
+      typeof parsed.selectedPlayId === 'string'
+    ) {
+      return parsed;
+    }
+  } catch {
+    // Ignore bad local data and fall back to defaults.
+  }
+  return { plays: DEFAULT_PLAYS, selectedPlayId: DEFAULT_PLAYS[0].id };
+};
+
 export default function CoachIBoard() {
   const navigate = useNavigate();
   const courtRef = useRef(null);
+  const [storedBoard] = useState(readStoredBoard);
 
-  const [plays, setPlays] = useState(DEFAULT_PLAYS);
-  const [selectedPlayId, setSelectedPlayId] = useState(DEFAULT_PLAYS[0].id);
+  const [plays, setPlays] = useState(storedBoard.plays);
+  const [selectedPlayId, setSelectedPlayId] = useState(storedBoard.selectedPlayId);
   const [tool, setTool] = useState('select');
   const [selectedColor, setSelectedColor] = useState(DRAWING_COLORS[0].value);
   const [draggingTokenId, setDraggingTokenId] = useState(null);
   const [drawingDraft, setDrawingDraft] = useState(null);
-
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (!saved) return;
-
-      const parsed = JSON.parse(saved);
-      if (
-        parsed &&
-        Array.isArray(parsed.plays) &&
-        parsed.plays.length > 0 &&
-        typeof parsed.selectedPlayId === 'string'
-      ) {
-        setPlays(parsed.plays);
-        setSelectedPlayId(parsed.selectedPlayId);
-      }
-    } catch {
-      // Ignore bad local data and fall back to defaults.
-    }
-  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(

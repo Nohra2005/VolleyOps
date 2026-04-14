@@ -1,10 +1,12 @@
 export async function apiFetch(path, options = {}) {
+  const { token = '', headers = {}, ...fetchOptions } = options;
   const response = await fetch(path, {
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
     },
-    ...options,
+    ...fetchOptions,
   });
 
   if (!response.ok) {

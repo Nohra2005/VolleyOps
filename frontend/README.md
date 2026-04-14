@@ -39,5 +39,3 @@ Linting
 ```bash
 npm run lint
 ```
-
-If you want, I can add a short `.env.example` in the frontend or add a `concurrently` script to run frontend and backend together.

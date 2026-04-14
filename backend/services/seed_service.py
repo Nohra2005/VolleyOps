@@ -21,6 +21,9 @@ from services.stats_service import calculate_hitting_percentage, calculate_perfo
 
 
 def seed_database():
+    # Seeding is intentionally disabled. Create users through signup/admin UI.
+    return
+
     if Team.query.count() > 0:
         return
 
@@ -39,7 +42,7 @@ def seed_database():
     db.session.flush()
 
     users = [
-        User(full_name="Tatiana Nohrat", email="tatiana@volleyops.test", password="demo123", role="MANAGER", phone="+961 70 000 001", joined_at=date(2025, 9, 1), payment_status="Paid", team_id=teams[2].id, position="Manager", last_active_at=datetime.utcnow() - timedelta(minutes=5)),
+        User(full_name="Tatiana Nohrat", email="tatiana@volleyops.test", password="demo123", role="ADMIN", phone="+961 70 000 001", joined_at=date(2025, 9, 1), payment_status="Paid", team_id=teams[2].id, position="Manager", last_active_at=datetime.utcnow() - timedelta(minutes=5)),
         User(full_name="Christophe El Chababc", email="christophe@volleyops.test", password="demo123", role="COACH", phone="+961 70 000 002", joined_at=date(2025, 9, 3), payment_status="Paid", team_id=teams[2].id, position="Head Coach", last_active_at=datetime.utcnow() - timedelta(hours=2)),
         User(full_name="Joey Saade", email="joey@volleyops.test", password="demo123", role="ATHLETE", phone="+961 70 000 003", emergency_contact="+961 70 100 003", date_of_birth=date(2007, 2, 14), attendance_rate=94, payment_status="Pending", next_payment_date=date.today() + timedelta(days=14), joined_at=date(2025, 9, 8), team_id=teams[1].id, position="Setter", last_active_at=datetime.utcnow() - timedelta(minutes=12)),
         User(full_name="Jad Mcheimech", email="jad@volleyops.test", password="demo123", role="ATHLETE", phone="+961 70 000 004", emergency_contact="+961 70 100 004", date_of_birth=date(2006, 6, 20), attendance_rate=88, payment_status="Overdue", next_payment_date=date.today() - timedelta(days=7), joined_at=date(2025, 9, 9), team_id=teams[2].id, position="Outside Hitter", last_active_at=datetime.utcnow() - timedelta(days=1, hours=1)),

@@ -61,5 +61,3 @@ FLUSH PRIVILEGES;
 Files and links
 - [backend/README.md](backend/README.md) — backend setup and `.env` details
 - [frontend/README.md](frontend/README.md) — frontend setup and dev server notes
-
-If you want, I can also add a script to run both services concurrently.
