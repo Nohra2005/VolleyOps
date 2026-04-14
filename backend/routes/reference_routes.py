@@ -1,5 +1,5 @@
-from flask import Blueprint, jsonify
-
+from flask import Blueprint, jsonify, request
+from extensions import db
 from model import Facility, Team, User
 
 reference_bp = Blueprint("reference", __name__, url_prefix="/api")
@@ -44,3 +44,33 @@ def list_facilities():
             for facility in facilities
         ]
     )
+
+@reference_bp.post("/teams")
+def create_team():
+    payload = request.get_json(silent=True) or {}
+    name = payload.get("name")
+    division = payload.get("division")
+    age_group = payload.get("ageGroup")
+
+    if not name or not division:
+        return jsonify({"error": "Team name and division are required"}), 400
+
+    # Check if team already exists
+    if Team.query.filter_by(name=name).first():
+        return jsonify({"error": "A team with this name already exists"}), 409
+
+    new_team = Team(
+        name=name,
+        division=division,
+        age_group=age_group
+    )
+    
+    db.session.add(new_team)
+    db.session.commit()
+
+    return jsonify({
+        "id": new_team.id, 
+        "name": new_team.name, 
+        "division": new_team.division, 
+        "ageGroup": new_team.age_group
+    }), 201
