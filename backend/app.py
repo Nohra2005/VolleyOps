@@ -8,6 +8,7 @@ from extensions import cors, db, jwt, ma
 from routes import register_blueprints
 from services.seed_service import demo_login_payload
 import model
+# from services.seed_service import seed_database
 
 ensure_database_exists()
 
@@ -95,7 +96,7 @@ with app.app_context():
         first_user = model.User.query.order_by(model.User.id.asc()).first()
         first_user.role = "ADMIN"
         db.session.commit()
-    # seed_database() is intentionally disabled; create users through signup/admin UI.
+    # seed_database()
 
 
 if __name__ == "__main__":

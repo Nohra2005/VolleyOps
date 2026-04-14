@@ -21,9 +21,6 @@ from services.stats_service import calculate_hitting_percentage, calculate_perfo
 
 
 def seed_database():
-    # Seeding is intentionally disabled. Create users through signup/admin UI.
-    return
-
     if Team.query.count() > 0:
         return
 
@@ -42,7 +39,8 @@ def seed_database():
     db.session.flush()
 
     users = [
-        User(full_name="Tatiana Nohrat", email="tatiana@volleyops.test", password="demo123", role="ADMIN", phone="+961 70 000 001", joined_at=date(2025, 9, 1), payment_status="Paid", team_id=teams[2].id, position="Manager", last_active_at=datetime.utcnow() - timedelta(minutes=5)),
+        User(full_name="VolleyOps Admin", email="admin@volleyops.test", password="admin123", role="ADMIN", phone="+961 70 000 000", joined_at=date(2025, 9, 1), payment_status="Paid", position="Club Admin", last_active_at=datetime.utcnow() - timedelta(minutes=3)),
+        User(full_name="Tatiana Nohrat", email="tatiana@volleyops.test", password="demo123", role="MANAGER", phone="+961 70 000 001", joined_at=date(2025, 9, 1), payment_status="Paid", team_id=teams[2].id, position="Team Manager", last_active_at=datetime.utcnow() - timedelta(minutes=5)),
         User(full_name="Christophe El Chababc", email="christophe@volleyops.test", password="demo123", role="COACH", phone="+961 70 000 002", joined_at=date(2025, 9, 3), payment_status="Paid", team_id=teams[2].id, position="Head Coach", last_active_at=datetime.utcnow() - timedelta(hours=2)),
         User(full_name="Joey Saade", email="joey@volleyops.test", password="demo123", role="ATHLETE", phone="+961 70 000 003", emergency_contact="+961 70 100 003", date_of_birth=date(2007, 2, 14), attendance_rate=94, payment_status="Pending", next_payment_date=date.today() + timedelta(days=14), joined_at=date(2025, 9, 8), team_id=teams[1].id, position="Setter", last_active_at=datetime.utcnow() - timedelta(minutes=12)),
         User(full_name="Jad Mcheimech", email="jad@volleyops.test", password="demo123", role="ATHLETE", phone="+961 70 000 004", emergency_contact="+961 70 100 004", date_of_birth=date(2006, 6, 20), attendance_rate=88, payment_status="Overdue", next_payment_date=date.today() - timedelta(days=7), joined_at=date(2025, 9, 9), team_id=teams[2].id, position="Outside Hitter", last_active_at=datetime.utcnow() - timedelta(days=1, hours=1)),
@@ -53,9 +51,9 @@ def seed_database():
     db.session.flush()
 
     bookings = [
-        Booking(title="U16 Team Practice", color="blue", is_recurring=True, day_of_week=1, start_hour=9, end_hour=11, facility_id=facilities[0].id, team_id=teams[0].id, created_by_user_id=users[0].id),
-        Booking(title="Division 1 Women Training", color="green", is_recurring=True, day_of_week=3, start_hour=18, end_hour=20, facility_id=facilities[2].id, team_id=teams[2].id, created_by_user_id=users[1].id),
-        Booking(title="Friendly Match Prep", color="purple", is_recurring=False, specific_date=date.today() + timedelta(days=2), start_hour=17, end_hour=19, facility_id=facilities[1].id, team_id=teams[1].id, created_by_user_id=users[4].id),
+        Booking(title="U16 Team Practice", color="blue", is_recurring=True, day_of_week=1, start_hour=9, end_hour=11, facility_id=facilities[0].id, team_id=teams[0].id, created_by_user_id=users[1].id),
+        Booking(title="Division 1 Women Training", color="green", is_recurring=True, day_of_week=3, start_hour=18, end_hour=20, facility_id=facilities[2].id, team_id=teams[2].id, created_by_user_id=users[2].id),
+        Booking(title="Friendly Match Prep", color="purple", is_recurring=False, specific_date=date.today() + timedelta(days=2), start_hour=17, end_hour=19, facility_id=facilities[1].id, team_id=teams[1].id, created_by_user_id=users[5].id),
     ]
     db.session.add_all(bookings)
     db.session.flush()
@@ -65,7 +63,7 @@ def seed_database():
     db.session.add(
         Play(
             name="Timeout Side-Out",
-            owner_id=users[1].id,
+            owner_id=users[2].id,
             is_locked=False,
             court_view="FULL",
             playback_speed=1.0,
@@ -75,13 +73,13 @@ def seed_database():
         )
     )
 
-    match = Match(team_id=teams[1].id, opponent="Beirut Falcons", played_on=date.today() - timedelta(days=3), venue="AUB Gym", created_by_user_id=users[4].id)
+    match = Match(team_id=teams[1].id, opponent="Beirut Falcons", played_on=date.today() - timedelta(days=3), venue="AUB Gym", created_by_user_id=users[5].id)
     db.session.add(match)
     db.session.flush()
 
     stats_payloads = [
-        {"player": users[2], "kills": 11, "attack_attempts": 24, "attack_errors": 4, "aces": 2, "blocks": 1, "digs": 7, "assists": 21, "receive_rating": 2.4},
-        {"player": users[5], "kills": 8, "attack_attempts": 18, "attack_errors": 2, "aces": 1, "blocks": 4, "digs": 5, "assists": 2, "receive_rating": 1.8},
+        {"player": users[3], "kills": 11, "attack_attempts": 24, "attack_errors": 4, "aces": 2, "blocks": 1, "digs": 7, "assists": 21, "receive_rating": 2.4},
+        {"player": users[6], "kills": 8, "attack_attempts": 18, "attack_errors": 2, "aces": 1, "blocks": 4, "digs": 5, "assists": 2, "receive_rating": 1.8},
     ]
 
     stat_rows = []
@@ -112,7 +110,7 @@ def seed_database():
                 tone="encouraging",
                 generated_text=generate_feedback_text(stat.player.full_name, stat.player.position, stat, tone="encouraging", team_average_score=avg_score),
                 is_approved=True,
-                created_by_user_id=users[1].id,
+                created_by_user_id=users[2].id,
             )
         )
 
@@ -126,19 +124,19 @@ def seed_database():
 
     db.session.add_all(
         [
-            ChannelMembership(channel_id=channels[0].id, user_id=users[2].id, is_online=True),
-            ChannelMembership(channel_id=channels[0].id, user_id=users[4].id, is_online=True),
-            ChannelMembership(channel_id=channels[1].id, user_id=users[1].id, is_online=True),
-            ChannelMembership(channel_id=channels[1].id, user_id=users[3].id, is_online=False),
-            ChannelMembership(channel_id=channels[2].id, user_id=users[1].id, is_online=True),
-            ChannelMembership(channel_id=channels[2].id, user_id=users[4].id, is_online=True),
+            ChannelMembership(channel_id=channels[0].id, user_id=users[3].id, is_online=True),
+            ChannelMembership(channel_id=channels[0].id, user_id=users[5].id, is_online=True),
+            ChannelMembership(channel_id=channels[1].id, user_id=users[2].id, is_online=True),
+            ChannelMembership(channel_id=channels[1].id, user_id=users[4].id, is_online=False),
+            ChannelMembership(channel_id=channels[2].id, user_id=users[2].id, is_online=True),
+            ChannelMembership(channel_id=channels[2].id, user_id=users[5].id, is_online=True),
         ]
     )
     db.session.add_all(
         [
-            Message(channel_id=channels[0].id, sender_id=users[4].id, content="Practice starts at 6 PM. Bring resistance bands.", attachment_type="schedule_reminder", is_pinned=True),
-            Message(channel_id=channels[0].id, sender_id=users[2].id, content="I uploaded the serve receive clips from yesterday."),
-            Message(channel_id=channels[2].id, sender_id=users[1].id, content="Please review the AI feedback before tonight's release.", is_pinned=True),
+            Message(channel_id=channels[0].id, sender_id=users[5].id, content="Practice starts at 6 PM. Bring resistance bands.", attachment_type="schedule_reminder", is_pinned=True),
+            Message(channel_id=channels[0].id, sender_id=users[3].id, content="I uploaded the serve receive clips from yesterday."),
+            Message(channel_id=channels[2].id, sender_id=users[2].id, content="Please review the AI feedback before tonight's release.", is_pinned=True),
         ]
     )
     db.session.commit()

@@ -70,7 +70,7 @@ FLUSH PRIVILEGES;
 ```
 
 ## Seeding and DB creation
-- On first run the backend will call `ensure_database_exists()` and `seed_database()`; ensure your MySQL server credentials are correct so the database can be created/seeded.
+- On first run the backend calls `ensure_database_exists()` so the database exists. The `seed_database()` call is commented in `app.py`; uncomment it only when you intentionally want to load sample data.
 
 ## Included modules
 - Authentication (login + seeded demo users)
