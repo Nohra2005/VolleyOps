@@ -31,7 +31,7 @@ class ChannelMembership(db.Model):
         "Channel",
         backref=db.backref("memberships", lazy=True, cascade="all, delete-orphan"),
     )
-    user = db.relationship("User", backref=db.backref("channel_memberships", lazy=True))
+    user = db.relationship("User", backref=db.backref("channel_memberships", lazy=True, cascade="all, delete-orphan"))
 
 
 class Message(db.Model):
@@ -46,4 +46,4 @@ class Message(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     channel = db.relationship("Channel", backref=db.backref("messages", lazy=True, cascade="all, delete-orphan"))
-    sender = db.relationship("User", backref=db.backref("messages", lazy=True))
+    sender = db.relationship("User", backref=db.backref("messages", lazy=True, cascade="all, delete-orphan"))

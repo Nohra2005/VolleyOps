@@ -26,9 +26,13 @@ export default function AdminUsers() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState('');
 
   const isManager = canManageUsers(user.role);
+  
+  // STRICT RBAC CHECK: Ensure the user is exactly a MANAGER
+  const isStrictlyManager = normalizeRole(user.role) === ROLES.MANAGER;
 
   const filteredUsers = useMemo(
     () =>
@@ -83,6 +87,39 @@ export default function AdminUsers() {
     }
   };
 
+  const deleteUser = async (targetUser) => {
+    // Frontend RBAC verification
+    if (!isStrictlyManager) {
+      setError("Access Denied: Only managers have permission to delete users.");
+      return;
+    }
+
+    if (targetUser.id === user.id) {
+      setError("You cannot delete your own account.");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete ${targetUser.name}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeletingId(targetUser.id);
+      
+      await apiFetch(`/api/members/${targetUser.id}`, {
+        method: 'DELETE',
+        token: user.token,
+      });
+      
+      setUsers((current) => current.filter((item) => item.id !== targetUser.id));
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="admin-users-container">
       <div className="admin-users-bg" aria-hidden="true" />
@@ -132,7 +169,7 @@ export default function AdminUsers() {
                     <th>Email</th>
                     <th>Team</th>
                     <th>Role</th>
-                    <th>Change role</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -157,15 +194,30 @@ export default function AdminUsers() {
                         <td>{item.team || 'No team'}</td>
                         <td><span className={`admin-users-role role-${normalizeRole(item.role).toLowerCase()}`}>{roleLabel(normalizeRole(item.role))}</span></td>
                         <td>
-                          <select
-                            value={normalizeRole(item.role)}
-                            disabled={savingId === item.id}
-                            onChange={(event) => updateRole(item, event.target.value)}
-                          >
-                            {ASSIGNABLE_ROLES.map((role) => (
-                              <option key={role} value={role}>{roleLabel(role)}</option>
-                            ))}
-                          </select>
+                          <div className="admin-users-actions">
+                            <select
+                              value={normalizeRole(item.role)}
+                              disabled={savingId === item.id || deletingId === item.id}
+                              onChange={(event) => updateRole(item, event.target.value)}
+                            >
+                              {ASSIGNABLE_ROLES.map((role) => (
+                                <option key={role} value={role}>{roleLabel(role)}</option>
+                              ))}
+                            </select>
+
+                            {/* Only render the delete button if the active user is a MANAGER */}
+                            {isStrictlyManager && (
+                              <button
+                                type="button"
+                                className="delete-user-btn"
+                                onClick={() => deleteUser(item)}
+                                disabled={deletingId === item.id || savingId === item.id}
+                                title={`Delete ${item.name}`}
+                              >
+                                {deletingId === item.id ? '...' : '🗑️'}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))

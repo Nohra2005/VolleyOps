@@ -233,3 +233,36 @@
   }
   .admin-users-topbar-right { justify-content: space-between; }
 }
+
+.admin-users-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.delete-user-btn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.delete-user-btn:hover:not(:disabled) {
+  opacity: 1;
+  background-color: #fee2e2;
+  color: #ef4444;
+  transform: scale(1.05);
+}
+
+.delete-user-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}

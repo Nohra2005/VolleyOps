@@ -121,7 +121,8 @@ def update_member(member_id):
 @member_bp.delete("/<int:member_id>")
 @jwt_required()
 def delete_member(member_id):
-    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    # RBAC ENFORCEMENT: Only ROLE_MANAGER can access this route now
+    _, error = current_user_or_error(ROLE_MANAGER)
     if error:
         return error
 

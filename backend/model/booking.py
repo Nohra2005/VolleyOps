@@ -19,7 +19,9 @@ class Booking(db.Model):
     end_hour = db.Column(db.Integer, nullable=False)
     facility_id = db.Column(db.Integer, db.ForeignKey("facility.id"), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=True)
+    
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(
         db.DateTime,
@@ -30,7 +32,13 @@ class Booking(db.Model):
 
     facility = db.relationship("Facility", backref=db.backref("bookings", lazy=True))
     team = db.relationship("Team", backref=db.backref("bookings", lazy=True))
-    created_by = db.relationship("User", backref=db.backref("created_bookings", lazy=True))
+    
+    # FIXED: Defined only once, explicitly linking to the foreign key column with the cascade fix
+    created_by = db.relationship(
+        "User", 
+        foreign_keys=[created_by_user_id],
+        backref=db.backref("created_bookings", lazy=True, cascade="all, delete-orphan")
+    )
 
 
 class BookingException(db.Model):
