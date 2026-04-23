@@ -10,6 +10,8 @@ class Team(db.Model):
     name = db.Column(db.String(120), nullable=False, unique=True)
     division = db.Column(db.String(120), nullable=False)
     age_group = db.Column(db.String(50), nullable=True)
+    coach_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    coach = db.relationship("User", foreign_keys=[coach_id], backref=db.backref("coached_teams", lazy=True))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 

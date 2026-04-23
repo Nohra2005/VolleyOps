@@ -8,8 +8,8 @@ import './ClubManagement.css';
 
 // ── No hardcoded initial data — lists start empty ─────────────────────────────
 const AVATAR_COLORS = ['#6b7bb8','#22c55e','#f59e0b','#ef4444','#8b5cf6','#0ea5e9','#ec4899','#14b8a6'];
-const avatarColor = (name) => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
-const getInitials = (name) => name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+const avatarColor = (name) => AVATAR_COLORS[name?.charCodeAt(0) % AVATAR_COLORS.length || 0];
+const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
 
 const PAYMENT_STYLES = {
   Paid:     { bg: '#dcfce7', color: '#15803d' },
@@ -38,6 +38,7 @@ export default function ClubManagement() {
   const [activeTab,    setActiveTab]    = useState('Players');
   const [searchQuery,  setSearchQuery]  = useState('');
   const [selectedRows, setSelectedRows] = useState(new Set());
+  const [teamFilter,   setTeamFilter]   = useState('');
   const [rowsPerPage,  setRowsPerPage]  = useState(10);
   const [currentPage,  setCurrentPage]  = useState(1);
   const [teams, setTeams] = useState([]);
@@ -58,16 +59,39 @@ export default function ClubManagement() {
   const [players, setPlayers] = useState([]);
   const [coaches, setCoaches] = useState([]);
   
+  const data = activeTab === 'Players' ? players : activeTab === 'Coaches' ? coaches : teams;
+  
+  const filtered = useMemo(() => {
+    if (activeTab === 'Teams') {
+      return teams.filter(t => 
+        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.division.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    return data.filter(m => {
+      const matchesSearch = 
+        m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (m.team || '').toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesTeam = teamFilter ? String(m.teamId) === String(teamFilter) : true;
+      return matchesSearch && matchesTeam;
+    });
+  }, [data, searchQuery, teamFilter, activeTab, teams]);
 
-  const data    = activeTab === 'Players' ? players : coaches;
-
-  const filtered = useMemo(() =>
-    data.filter(m =>
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (m.team || '').toLowerCase().includes(searchQuery.toLowerCase())
-    ), [data, searchQuery]
-  );
+  const assignCoachToTeam = async (teamId, coachId) => {
+    try {
+      await apiFetch(`/api/teams/${teamId}`, {
+        method: 'PUT',
+        token: user.token,
+        body: JSON.stringify({ coachId: coachId || null }),
+      });
+      await loadMembers(); // Reloads everything so the UI is fresh
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const paginated  = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
@@ -145,22 +169,21 @@ export default function ClubManagement() {
   };
 
   const saveTeamModal = async (e) => {
-  e.preventDefault();
-  try {
-    await apiFetch('/api/teams', {
-      method: 'POST',
-      token: user.token,
-      body: JSON.stringify(teamFormData),
-    });
-    // Reload data so the new team appears in the select dropdowns
-    await loadMembers(); 
-    setTeamModalOpen(false);
-    setTeamFormData({ name: '', division: '', ageGroup: '' });
-    setError('');
-  } catch (err) {
-    setError(err.message);
-  }
-};
+    e.preventDefault();
+    try {
+      await apiFetch('/api/teams', {
+        method: 'POST',
+        token: user.token,
+        body: JSON.stringify(teamFormData),
+      });
+      await loadMembers(); 
+      setTeamModalOpen(false);
+      setTeamFormData({ name: '', division: '', ageGroup: '' });
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   // ── Eye icon — navigate to player profile page ────────────────────────────
   const viewProfile = (member) => {
@@ -177,7 +200,7 @@ export default function ClubManagement() {
     return pages;
   };
 
-  const userInitials = user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const userInitials = user.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
 
   return (
     <div className="cm-container">
@@ -185,7 +208,6 @@ export default function ClubManagement() {
 
       {/* ── Top bar ────────────────────────────────────────────────────── */}
       <header className="cm-topbar">
-        {/* Logo + title */}
         <div className="cm-topbar-left">
           <img src={logo} alt="VolleyOps" className="cm-header-logo" />
           <h1 className="cm-title">CLUB MANAGEMENT</h1>
@@ -199,16 +221,34 @@ export default function ClubManagement() {
         </div>
       </header>
 
-      {/* ── Search + Add ─────────────────────────────────────────────── */}
+      {/* ── Search + Filter + Add ────────────────────────────────────── */}
       <div className="cm-toolbar">
-        <div className="cm-search-wrap">
-          <input className="cm-search" placeholder="Search for players or coaches"
-            value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }} />
-          <button className="cm-search-btn"><IconSearch /></button>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div className="cm-search-wrap">
+            <input className="cm-search" placeholder={`Search ${activeTab.toLowerCase()}`}
+              value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }} />
+            <button className="cm-search-btn"><IconSearch /></button>
+          </div>
+          
+          {/* Show Team Filter only for Players and Coaches */}
+          {activeTab !== 'Teams' && (
+            <div className="cm-team-filter">
+              <select 
+                value={teamFilter} 
+                onChange={(e) => { setTeamFilter(e.target.value); setCurrentPage(1); }}
+              >
+                <option value="">All Teams</option>
+                {teams.map(team => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         
         <div style={{ display: 'flex', gap: '10px' }}>
-          {/* Conditionally render Add Team based on Role */}
           {(normalizedRole === ROLES.MANAGER || normalizedRole === ROLES.COACH) && (
             <button className="cm-add-btn" onClick={() => setTeamModalOpen(true)}>+ Add Team</button>
           )}
@@ -219,7 +259,7 @@ export default function ClubManagement() {
       {/* ── Table card ───────────────────────────────────────────────── */}
       <div className="cm-card">
         <div className="cm-tabs">
-          {['Players', 'Coaches'].map(tab => (
+          {['Players', 'Coaches', 'Teams'].map(tab => (
             <button key={tab} className={`cm-tab ${activeTab === tab ? 'active' : ''}`}
               onClick={() => { setActiveTab(tab); setCurrentPage(1); setSelectedRows(new Set()); }}>
               {tab}
@@ -231,54 +271,90 @@ export default function ClubManagement() {
           {error && <p className="cm-empty">{error}</p>}
           <table className="cm-table">
             <thead>
-              <tr>
-                <th className="cm-th-check"><input type="checkbox" checked={allSelected} onChange={toggleAll} /></th>
-                <th>Full Name <IconSort /></th>
-                <th>Email <IconSort /></th>
-                <th>Team <IconSort /></th>
-                <th>Payment <IconSort /></th>
-                <th>Position <IconSort /></th>
-                <th>Joined Date <IconSort /></th>
-                <th>Last Active <IconSort /></th>
-                <th>Actions</th>
-              </tr>
+              {/* DYNAMIC HEADERS based on active tab */}
+              {activeTab === 'Teams' ? (
+                <tr>
+                  <th>Team Name <IconSort /></th>
+                  <th>Division <IconSort /></th>
+                  <th>Age Group <IconSort /></th>
+                  <th>Assigned Coach <IconSort /></th>
+                </tr>
+              ) : (
+                <tr>
+                  <th className="cm-th-check"><input type="checkbox" checked={allSelected} onChange={toggleAll} /></th>
+                  <th>Full Name <IconSort /></th>
+                  <th>Email <IconSort /></th>
+                  <th>Team <IconSort /></th>
+                  <th>Payment <IconSort /></th>
+                  <th>Position <IconSort /></th>
+                  <th>Joined Date <IconSort /></th>
+                  <th>Last Active <IconSort /></th>
+                  <th>Actions</th>
+                </tr>
+              )}
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="cm-empty">Loading members...</td>
+                  <td colSpan={9} className="cm-empty">Loading data...</td>
                 </tr>
               ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="cm-empty">
-                    {searchQuery ? 'No members match your search.' : `No ${activeTab.toLowerCase()} yet. Click "+ Add Member" to get started.`}
+                    {searchQuery ? `No ${activeTab.toLowerCase()} match your search.` : `No ${activeTab.toLowerCase()} yet.`}
                   </td>
                 </tr>
-              ) : paginated.map(member => (
-                <tr key={member.id} className={selectedRows.has(member.id) ? 'selected' : ''}>
-                  <td className="cm-td-check"><input type="checkbox" checked={selectedRows.has(member.id)} onChange={() => toggleRow(member.id)} /></td>
-                  <td>
-                    <div className="cm-name-cell">
-                      <div className="cm-avatar" style={{ background: avatarColor(member.name) }}>{getInitials(member.name)}</div>
-                      <span>{member.name}</span>
-                    </div>
-                  </td>
-                  <td className="cm-muted">{member.email}</td>
-                  <td>{member.team}</td>
-                  <td><PaymentBadge status={member.payment} /></td>
-                  <td>{member.position}</td>
-                  <td className="cm-muted">{member.joined}</td>
-                  <td className="cm-muted">{member.lastActive}</td>
-                  <td>
-                    <div className="cm-actions">
-                      {/* View → player profile page */}
-                      <button className="cm-action-btn view"   title="View profile" onClick={() => viewProfile(member)}><IconView /></button>
-                      <button className="cm-action-btn edit"   title="Edit"         onClick={() => openEdit(member)}>  <IconEdit /></button>
-                      <button className="cm-action-btn delete" title="Delete"       onClick={() => deleteMember(member.id)}><IconDelete /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              ) : activeTab === 'Teams' ? (
+                /* DYNAMIC ROWS FOR TEAMS */
+                paginated.map(team => (
+                  <tr key={team.id}>
+                    <td><strong>{team.name}</strong></td>
+                    <td>{team.division}</td>
+                    <td>{team.ageGroup || '-'}</td>
+                    <td>
+                      <select 
+                        className="cm-coach-select"
+                        value={team.coachId || ""} 
+                        onChange={(e) => assignCoachToTeam(team.id, e.target.value)}
+                        disabled={normalizedRole !== ROLES.MANAGER}
+                        title={normalizedRole !== ROLES.MANAGER ? "Only managers can assign coaches" : ""}
+                        style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid #e2e8f0', outline: 'none', background: '#f8fafc' }}
+                      >
+                        <option value="">Unassigned</option>
+                        {coaches.map(coach => (
+                          <option key={coach.id} value={coach.id}>{coach.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                /* DYNAMIC ROWS FOR PLAYERS/COACHES */
+                paginated.map(member => (
+                  <tr key={member.id} className={selectedRows.has(member.id) ? 'selected' : ''}>
+                    <td className="cm-td-check"><input type="checkbox" checked={selectedRows.has(member.id)} onChange={() => toggleRow(member.id)} /></td>
+                    <td>
+                      <div className="cm-name-cell">
+                        <div className="cm-avatar" style={{ background: avatarColor(member.name) }}>{getInitials(member.name)}</div>
+                        <span>{member.name}</span>
+                      </div>
+                    </td>
+                    <td className="cm-muted">{member.email}</td>
+                    <td>{member.team}</td>
+                    <td><PaymentBadge status={member.payment} /></td>
+                    <td>{member.position}</td>
+                    <td className="cm-muted">{member.joined}</td>
+                    <td className="cm-muted">{member.lastActive}</td>
+                    <td>
+                      <div className="cm-actions">
+                        <button className="cm-action-btn view"   title="View profile" onClick={() => viewProfile(member)}><IconView /></button>
+                        <button className="cm-action-btn edit"   title="Edit"         onClick={() => openEdit(member)}>  <IconEdit /></button>
+                        <button className="cm-action-btn delete" title="Delete"       onClick={() => deleteMember(member.id)}><IconDelete /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

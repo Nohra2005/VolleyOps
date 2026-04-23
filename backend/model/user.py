@@ -30,4 +30,4 @@ class User(db.Model):
         nullable=False,
     )
 
-    team = db.relationship("Team", backref=db.backref("members", lazy=True))
+    team = db.relationship("Team", foreign_keys=[team_id], backref=db.backref("members", lazy=True))

@@ -51,6 +51,13 @@ def seed_database():
     db.session.add_all(users)
     db.session.flush()
 
+    # --- NEW ADDITION ---
+    # Now that the users exist, assign the Head Coaches to the Teams
+    teams[2].coach_id = users[2].id  # Christophe (users[2]) coaches Division 1 Women (teams[2])
+    teams[1].coach_id = users[5].id  # Mira (users[5]) coaches U18 Team (teams[1])
+    db.session.flush()
+    # --------------------
+
     bookings = [
         Booking(title="U16 Team Practice", color="blue", is_recurring=True, day_of_week=1, start_hour=9, end_hour=11, facility_id=facilities[0].id, team_id=teams[0].id, created_by_user_id=users[1].id),
         Booking(title="Division 1 Women Training", color="green", is_recurring=True, day_of_week=3, start_hour=18, end_hour=20, facility_id=facilities[2].id, team_id=teams[2].id, created_by_user_id=users[2].id),

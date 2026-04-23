@@ -107,3 +107,33 @@ input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-colo
 .cm-save-btn:hover { background: #5a679d; transform: translateY(-1px); }
 .cm-cancel-btn { background: #fff; border: 2px solid #f1f5f9; padding: 11px 22px; border-radius: 10px; color: #64748b; font-weight: 700; font-size: 14px; cursor: pointer; }
 .cm-cancel-btn:hover { background: #f8fafc; }
+/* ── Team Filter Dropdown ────────────────────────────────────────────────── */
+.cm-team-filter select {
+  padding: 10px 18px 10px 14px;
+  border-radius: 30px;
+  border: 1.5px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #334155;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: all 0.2s ease;
+  height: 40px; /* Matches the search bar height */
+  appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="%2364748b" height="20" viewBox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.cm-team-filter select:hover {
+  border-color: #cbd5e1;
+}
+
+.cm-team-filter select:focus {
+  border-color: #6b7bb8;
+  box-shadow: 0 0 0 3px rgba(107, 123, 184, 0.15);
+}

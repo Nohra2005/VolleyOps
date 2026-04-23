@@ -33,7 +33,14 @@ def list_teams():
     teams = Team.query.order_by(Team.name.asc()).all()
     return jsonify(
         [
-            {"id": team.id, "name": team.name, "division": team.division, "ageGroup": team.age_group}
+            {
+                "id": team.id, 
+                "name": team.name, 
+                "division": team.division, 
+                "ageGroup": team.age_group,
+                "coachId": team.coach_id,
+                "coachName": team.coach.full_name if team.coach else None
+            }
             for team in teams
         ]
     )
@@ -84,3 +91,33 @@ def create_team():
         "division": new_team.division, 
         "ageGroup": new_team.age_group
     }), 201
+
+@reference_bp.put("/teams/<int:team_id>")
+@jwt_required()
+def update_team(team_id):
+    # STRICT RBAC: Only Managers can assign coaches
+    _, error = current_user_or_error(ROLE_MANAGER)
+    if error:
+        return error
+
+    team = Team.query.get_or_404(team_id)
+    payload = request.get_json(silent=True) or {}
+
+    if "coachId" in payload:
+        coach_id = payload["coachId"]
+        if coach_id:
+            coach = User.query.get(coach_id)
+            if not coach or normalize_role(coach.role) != ROLE_COACH:
+                return jsonify({"error": "Invalid coach ID or user is not a coach"}), 400
+            team.coach_id = coach.id
+        else:
+            team.coach_id = None  # Unassign coach
+
+    db.session.commit()
+
+    return jsonify({
+        "id": team.id,
+        "name": team.name,
+        "coachId": team.coach_id,
+        "coachName": team.coach.full_name if team.coach else None
+    })
