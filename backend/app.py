@@ -106,7 +106,7 @@ with app.app_context():
     db.create_all()
     normalize_user_roles()
     ensure_booking_schema_updates()
-    seed_database()
+    #seed_database()
 
     if model.User.query.count() > 0 and model.User.query.filter_by(role=ROLE_MANAGER).count() == 0:
         first_user = model.User.query.order_by(model.User.id.asc()).first()

@@ -8,6 +8,7 @@ import Home from './features/Home';
 import Scheduling from './features/Scheduling';
 import ClubManagement from './features/ClubManagement';
 import PlayerProfile from './features/PlayerProfile';
+import PlayerStats from './features/PlayerStats'; // <-- IMPORTED HERE
 import CoachIBoard from './features/CoachIBoard';
 import AdminUsers from './features/AdminUsers';
 
@@ -25,36 +26,61 @@ function RequireAuth({ children, allowRoles = [] }) {
   return children;
 }
 
+// Smart redirect for the top navigation button
+function AthleteStatsRedirect() {
+  const user = useUser();
+  const normalizedRole = normalizeRole(user.role);
+
+  if (normalizedRole === ROLES.PLAYER) {
+    return <Navigate to={`/player-profile/${user.id}/stats`} replace />;
+  } 
+  return <Navigate to="/team-management" replace />;
+}
+
 export default function App() {
   return (
     <UserProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Home />} />
+          
           <Route
             path="/scheduling"
             element={<RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH, ROLES.PLAYER]}><Scheduling /></RequireAuth>}
           />
+          
           <Route
             path="/team-management"
             element={<RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH]}><ClubManagement /></RequireAuth>}
           />
+          
           <Route
             path="/player-profile/:id"
             element={<RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH]}><PlayerProfile /></RequireAuth>}
           />
+          
+          {/* THE MISSING ROUTE IS RIGHT HERE */}
+          <Route
+            path="/player-profile/:id/stats"
+            element={<RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH, ROLES.PLAYER]}><PlayerStats /></RequireAuth>}
+          />
+
           <Route
             path="/communication"
             element={<RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH, ROLES.PLAYER]}><Home /></RequireAuth>}
           />
+          
+          {/* Using the smart redirect */}
           <Route
             path="/athlete-stats"
-            element={<RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH, ROLES.PLAYER]}><Home /></RequireAuth>}
+            element={<RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH, ROLES.PLAYER]}><AthleteStatsRedirect /></RequireAuth>}
           />
+          
           <Route
             path="/coach-iboard"
             element={<RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH]}><CoachIBoard /></RequireAuth>}
           />
+          
           <Route
             path="/admin/users"
             element={<RequireAuth allowRoles={[ROLES.MANAGER]}><AdminUsers /></RequireAuth>}

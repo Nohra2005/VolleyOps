@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import { apiFetch, formatApiDate } from '../lib/api';
 import './PlayerProfile.css';
+import { useUser } from '../UserContextCore';
 
 const AVATAR_COLORS = ['#6b7bb8', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9', '#ec4899', '#14b8a6'];
 const avatarColor = (name) => AVATAR_COLORS[(name || '?').charCodeAt(0) % AVATAR_COLORS.length];
@@ -23,6 +24,7 @@ export default function PlayerProfile() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const { id } = useParams();
+  const user = useUser();
 
   const [member, setMember] = useState(state?.member || {
     id: null,
@@ -58,8 +60,8 @@ export default function PlayerProfile() {
       try {
         setLoading(true);
         const [memberData, teamsData] = await Promise.all([
-          apiFetch(`/api/members/${id}`),
-          apiFetch('/api/teams'),
+          apiFetch(`/api/members/${id}`, { token: user.token }), 
+          apiFetch('/api/teams', { token: user.token }), // <-- ADDED TOKEN HERE
         ]);
         setMember(memberData);
         setTeams(teamsData || []);
@@ -72,13 +74,14 @@ export default function PlayerProfile() {
     };
 
     loadProfile();
-  }, [id]);
+  }, [id, user.token]);
 
   const saveEdit = async (e) => {
     e.preventDefault();
     try {
       const updated = await apiFetch(`/api/members/${id}`, {
         method: 'PUT',
+        token: user.token, // <-- ADDED TOKEN HERE
         body: JSON.stringify({
           ...form,
           teamId: form.teamId ? Number(form.teamId) : null,
@@ -156,7 +159,20 @@ export default function PlayerProfile() {
           </div>
         </div>
 
-        <div className="pp-card-footer">
+        <div className="pp-card-footer" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+          <button 
+            className="pp-stats-btn" 
+            onClick={() => navigate(`/player-profile/${id}/stats`, { state: { member } })}
+            style={{
+              background: '#eff6ff', border: '1.5px solid #bfdbfe', padding: '10px 24px', 
+              borderRadius: '10px', fontWeight: '700', fontSize: '14px', color: '#1d4ed8', 
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+              transition: 'all 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+            }}
+          >
+            View Performance Stats 📊
+          </button>
+          
           <button className="pp-edit-btn" onClick={() => setEditOpen(true)}>
             Edit <span>✎</span>
           </button>

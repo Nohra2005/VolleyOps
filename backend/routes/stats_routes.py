@@ -13,23 +13,29 @@ stats_bp = Blueprint("stats", __name__, url_prefix="/api/stats")
 
 
 def serialize_stat(stat):
+    match = Match.query.get(stat.match_id)
+    team = Team.query.get(match.team_id)
+    player = User.query.get(stat.player_id)
+    feedback = AIFeedback.query.filter_by(player_stat_id=stat.id).first()
+    
+
     team_average_score = (
         db.session.query(func.avg(PlayerMatchStat.performance_score))
         .join(Match, Match.id == PlayerMatchStat.match_id)
-        .filter(Match.team_id == stat.match.team_id)
+        .filter(Match.team_id == team.id)
         .scalar()
     ) or 0
-    feedback = stat.feedback_items[0] if stat.feedback_items else None
+
     return {
         "id": stat.id,
-        "playerId": stat.player_id,
-        "playerName": stat.player.full_name,
-        "position": stat.player.position,
-        "matchId": stat.match_id,
-        "teamId": stat.match.team_id,
-        "team": stat.match.team.name,
-        "opponent": stat.match.opponent,
-        "playedOn": stat.match.played_on.isoformat(),
+        "playerId": player.id,
+        "playerName": player.full_name,
+        "position": player.position,
+        "matchId": match.id,
+        "teamId": team.id,
+        "team": team.name,
+        "opponent": match.opponent,
+        "playedOn": match.played_on.isoformat(),
         "kills": stat.kills,
         "attackAttempts": stat.attack_attempts,
         "attackErrors": stat.attack_errors,
@@ -49,7 +55,6 @@ def serialize_stat(stat):
             "isApproved": feedback.is_approved,
         },
     }
-
 
 @stats_bp.get("/matches")
 @jwt_required()
