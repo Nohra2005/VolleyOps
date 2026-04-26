@@ -57,6 +57,121 @@ def list_facilities():
         ]
     )
 
+
+@reference_bp.post("/facilities")
+@jwt_required()
+def create_facility():
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    location = (payload.get("location") or "").strip() or None
+    start_hour = payload.get("startHour", 8)
+    end_hour = payload.get("endHour", 22)
+
+    if not name:
+        return jsonify({"error": "Court name is required"}), 400
+
+    try:
+        start_hour = int(start_hour)
+        end_hour = int(end_hour)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Operating hours must be valid integers"}), 400
+
+    if start_hour < 0 or end_hour > 24 or start_hour >= end_hour:
+        return jsonify({"error": "Operating hours must be between 0 and 24, with start earlier than end"}), 400
+
+    existing = Facility.query.filter_by(name=name).first()
+    if existing:
+        return jsonify({"error": "A court with this name already exists"}), 409
+
+    facility = Facility(
+        name=name,
+        location=location,
+        operating_start_hour=start_hour,
+        operating_end_hour=end_hour,
+    )
+    db.session.add(facility)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "id": facility.id,
+            "name": facility.name,
+            "location": facility.location,
+            "startHour": facility.operating_start_hour,
+            "endHour": facility.operating_end_hour,
+        }
+    ), 201
+
+
+@reference_bp.put("/facilities/<int:facility_id>")
+@jwt_required()
+def update_facility(facility_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
+    facility = Facility.query.get_or_404(facility_id)
+    payload = request.get_json(silent=True) or {}
+
+    if "name" in payload:
+        next_name = (payload.get("name") or "").strip()
+        if not next_name:
+            return jsonify({"error": "Court name is required"}), 400
+
+        existing = Facility.query.filter(Facility.name == next_name, Facility.id != facility.id).first()
+        if existing:
+            return jsonify({"error": "A court with this name already exists"}), 409
+        facility.name = next_name
+
+    if "location" in payload:
+        facility.location = (payload.get("location") or "").strip() or None
+
+    start_hour = payload.get("startHour", facility.operating_start_hour)
+    end_hour = payload.get("endHour", facility.operating_end_hour)
+    try:
+        start_hour = int(start_hour)
+        end_hour = int(end_hour)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Operating hours must be valid integers"}), 400
+
+    if start_hour < 0 or end_hour > 24 or start_hour >= end_hour:
+        return jsonify({"error": "Operating hours must be between 0 and 24, with start earlier than end"}), 400
+
+    facility.operating_start_hour = start_hour
+    facility.operating_end_hour = end_hour
+    db.session.commit()
+
+    return jsonify(
+        {
+            "id": facility.id,
+            "name": facility.name,
+            "location": facility.location,
+            "startHour": facility.operating_start_hour,
+            "endHour": facility.operating_end_hour,
+        }
+    )
+
+
+@reference_bp.delete("/facilities/<int:facility_id>")
+@jwt_required()
+def delete_facility(facility_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
+    facility = Facility.query.get_or_404(facility_id)
+    if facility.bookings:
+        return jsonify({"error": "Cannot delete this court because it has existing bookings"}), 409
+
+    db.session.delete(facility)
+    db.session.commit()
+    return "", 204
+
+
 @reference_bp.post("/teams")
 @jwt_required()
 def create_team():

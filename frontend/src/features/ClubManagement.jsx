@@ -101,12 +101,20 @@ const EMPTY_TEAM_FORM = {
   coachId: '',
 };
 
+const EMPTY_COURT_FORM = {
+  name: '',
+  location: '',
+  startHour: '8',
+  endHour: '22',
+};
+
 export default function ClubManagement() {
   const navigate = useNavigate();
   const user = useUser();
   const normalizedRole = normalizeRole(user.role);
 
   const canManageTeams = normalizedRole === ROLES.MANAGER || normalizedRole === ROLES.COACH;
+  const canManageCourts = normalizedRole === ROLES.MANAGER || normalizedRole === ROLES.COACH;
   const canDeleteMembers = normalizedRole === ROLES.MANAGER;
   const canEditMembers = normalizedRole === ROLES.MANAGER || normalizedRole === ROLES.COACH;
 
@@ -121,6 +129,7 @@ export default function ClubManagement() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [teams, setTeams] = useState([]);
+  const [courts, setCourts] = useState([]);
   const [players, setPlayers] = useState([]);
   const [coaches, setCoaches] = useState([]);
 
@@ -133,8 +142,16 @@ export default function ClubManagement() {
   const [formData, setFormData] = useState(EMPTY_MEMBER_FORM);
   const [teamModal, setTeamModal] = useState({ open: false, mode: 'add', team: null });
   const [teamFormData, setTeamFormData] = useState(EMPTY_TEAM_FORM);
+  const [courtModal, setCourtModal] = useState({ open: false, mode: 'add', court: null });
+  const [courtFormData, setCourtFormData] = useState(EMPTY_COURT_FORM);
 
-  const data = activeTab === 'Players' ? players : activeTab === 'Coaches' ? coaches : teams;
+  const data = activeTab === 'Players'
+    ? players
+    : activeTab === 'Coaches'
+      ? coaches
+      : activeTab === 'Teams'
+        ? teams
+        : courts;
 
   const teamLookup = useMemo(() => {
     return teams.reduce((acc, team) => {
@@ -159,11 +176,12 @@ export default function ClubManagement() {
       players: players.length,
       coaches: coaches.length,
       teams: teams.length,
+      courts: courts.length,
       assignedPlayers,
       overdueCount,
       averageAttendance,
     };
-  }, [players, coaches, teams]);
+  }, [players, coaches, teams, courts]);
 
   const uniquePositions = useMemo(() => {
     const positions = [...players, ...coaches]
@@ -183,6 +201,15 @@ export default function ClubManagement() {
           item.division,
           item.ageGroup,
           assignedCoach?.name,
+        ].some((value) => safeText(value).toLowerCase().includes(query));
+      }
+
+      if (activeTab === 'Courts') {
+        return [
+          item.name,
+          item.location,
+          item.startHour ? `${item.startHour}:00` : '',
+          item.endHour ? `${item.endHour}:00` : '',
         ].some((value) => safeText(value).toLowerCase().includes(query));
       }
 
@@ -253,9 +280,10 @@ export default function ClubManagement() {
       setLoading(true);
       setError('');
 
-      const [membersData, teamsData] = await Promise.all([
+      const [membersData, teamsData, courtsData] = await Promise.all([
         apiFetch('/api/members', { token: user.token }),
         apiFetch('/api/teams', { token: user.token }),
+        apiFetch('/api/facilities', { token: user.token }),
       ]);
 
       const normalizedMembers = (membersData || []).map((member) => ({
@@ -267,6 +295,7 @@ export default function ClubManagement() {
       setPlayers(normalizedMembers.filter((member) => normalizeRole(member.role) === ROLES.PLAYER));
       setCoaches(normalizedMembers.filter((member) => normalizeRole(member.role) === ROLES.COACH));
       setTeams(teamsData || []);
+      setCourts(courtsData || []);
     } catch (err) {
       setError(err.message || 'Could not load club data.');
     } finally {
@@ -310,6 +339,12 @@ export default function ClubManagement() {
       return;
     }
 
+    if (activeTab === 'Courts') {
+      setCourtFormData(EMPTY_COURT_FORM);
+      setCourtModal({ open: true, mode: 'add', court: null });
+      return;
+    }
+
     setFormData({
       ...EMPTY_MEMBER_FORM,
       position: activeTab === 'Coaches' ? 'Coach' : '',
@@ -342,6 +377,16 @@ export default function ClubManagement() {
       coachId: team.coachId ? String(team.coachId) : '',
     });
     setTeamModal({ open: true, mode: 'edit', team });
+  };
+
+  const openCourtEdit = (court) => {
+    setCourtFormData({
+      name: court.name || '',
+      location: court.location || '',
+      startHour: String(court.startHour ?? 8),
+      endHour: String(court.endHour ?? 22),
+    });
+    setCourtModal({ open: true, mode: 'edit', court });
   };
 
   const viewProfile = (member) => {
@@ -449,6 +494,64 @@ export default function ClubManagement() {
     }
   };
 
+  const saveCourtModal = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+
+    const payload = {
+      name: courtFormData.name.trim(),
+      location: courtFormData.location.trim(),
+      startHour: Number(courtFormData.startHour),
+      endHour: Number(courtFormData.endHour),
+    };
+
+    try {
+      if (courtModal.mode === 'add') {
+        await apiFetch('/api/facilities', {
+          method: 'POST',
+          token: user.token,
+          body: JSON.stringify(payload),
+        });
+        showSuccess('Court added successfully.');
+      } else {
+        await apiFetch(`/api/facilities/${courtModal.court.id}`, {
+          method: 'PUT',
+          token: user.token,
+          body: JSON.stringify(payload),
+        });
+        showSuccess('Court updated successfully.');
+      }
+
+      await loadMembers();
+      setCourtModal({ open: false, mode: 'add', court: null });
+      setCourtFormData(EMPTY_COURT_FORM);
+    } catch (err) {
+      setError(err.message || 'Could not save court.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteCourt = async (courtId, name) => {
+    if (!canManageCourts) {
+      setError('Only managers/coaches can delete courts.');
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ${name || 'this court'}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      setError('');
+      await apiFetch(`/api/facilities/${courtId}`, { method: 'DELETE', token: user.token });
+      await loadMembers();
+      showSuccess('Court deleted.');
+    } catch (err) {
+      setError(err.message || 'Could not delete court.');
+    }
+  };
+
   const deleteMember = async (id, name) => {
     if (!canDeleteMembers) {
       setError('Only managers can delete members.');
@@ -513,7 +616,7 @@ export default function ClubManagement() {
 
   const userInitials = getInitials(user.name);
 
-  const tableColSpan = activeTab === 'Teams' ? 6 : 10;
+  const tableColSpan = activeTab === 'Teams' || activeTab === 'Courts' ? 6 : 10;
 
   return (
     <div className="cm-container">
@@ -524,7 +627,7 @@ export default function ClubManagement() {
           <img src={logo} alt="VolleyOps" className="cm-header-logo" />
           <div>
             <h1 className="cm-title">CLUB MANAGEMENT</h1>
-            <p className="cm-subtitle">Manage players, coaches, teams, profiles, and payment readiness.</p>
+            <p className="cm-subtitle">Manage players, coaches, teams, courts, profiles, and payment readiness.</p>
           </div>
         </div>
 
@@ -553,6 +656,11 @@ export default function ClubManagement() {
           <strong>{dashboardStats.teams}</strong>
           <small>Filter roster by team</small>
         </div>
+        <div className="cm-stat-card">
+          <span className="cm-stat-label">Courts</span>
+          <strong>{dashboardStats.courts}</strong>
+          <small>Scheduling resources</small>
+        </div>
         <div className="cm-stat-card warning">
           <span className="cm-stat-label">Payment Alerts</span>
           <strong>{dashboardStats.overdueCount}</strong>
@@ -576,7 +684,13 @@ export default function ClubManagement() {
           <div className="cm-search-wrap">
             <input
               className="cm-search"
-              placeholder={`Search ${activeTab.toLowerCase()} by name, email, team, position...`}
+              placeholder={
+                activeTab === 'Teams'
+                  ? 'Search teams by name, division, age group, or coach...'
+                  : activeTab === 'Courts'
+                    ? 'Search courts by name, location, or operating hours...'
+                    : `Search ${activeTab.toLowerCase()} by name, email, team, position...`
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -585,7 +699,7 @@ export default function ClubManagement() {
             </button>
           </div>
 
-          {activeTab !== 'Teams' && (
+          {activeTab !== 'Teams' && activeTab !== 'Courts' && (
             <>
               <div className="cm-filter">
                 <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
@@ -624,7 +738,7 @@ export default function ClubManagement() {
         </div>
 
         <div className="cm-toolbar-right">
-          {selectedRows.size > 0 && activeTab !== 'Teams' && canDeleteMembers && (
+          {selectedRows.size > 0 && activeTab !== 'Teams' && activeTab !== 'Courts' && canDeleteMembers && (
             <button className="cm-danger-btn" onClick={bulkDelete}>
               Delete Selected ({selectedRows.size})
             </button>
@@ -639,9 +753,9 @@ export default function ClubManagement() {
             </button>
           )}
 
-          {canEditMembers && (
+          {(activeTab === 'Courts' ? canManageCourts : canEditMembers) && (
             <button className="cm-add-btn" onClick={openAdd}>
-              + Add {activeTab === 'Teams' ? 'Team' : activeTab === 'Players' ? 'Player' : 'Coach'}
+              + Add {activeTab === 'Teams' ? 'Team' : activeTab === 'Courts' ? 'Court' : activeTab === 'Players' ? 'Player' : 'Coach'}
             </button>
           )}
         </div>
@@ -649,7 +763,7 @@ export default function ClubManagement() {
 
       <div className="cm-card">
         <div className="cm-tabs">
-          {['Players', 'Coaches', 'Teams'].map((tab) => (
+          {['Players', 'Coaches', 'Teams', 'Courts'].map((tab) => (
             <button
               key={tab}
               className={`cm-tab ${activeTab === tab ? 'active' : ''}`}
@@ -662,7 +776,7 @@ export default function ClubManagement() {
             >
               {tab}
               <span className="cm-tab-count">
-                {tab === 'Players' ? players.length : tab === 'Coaches' ? coaches.length : teams.length}
+                {tab === 'Players' ? players.length : tab === 'Coaches' ? coaches.length : tab === 'Teams' ? teams.length : courts.length}
               </span>
             </button>
           ))}
@@ -678,6 +792,15 @@ export default function ClubManagement() {
                   <th onClick={() => requestSort('ageGroup')}>Age Group <IconSort /></th>
                   <th>Players</th>
                   <th>Assigned Coach</th>
+                  <th>Actions</th>
+                </tr>
+              ) : activeTab === 'Courts' ? (
+                <tr>
+                  <th onClick={() => requestSort('name')}>Court Name <IconSort /></th>
+                  <th onClick={() => requestSort('location')}>Location <IconSort /></th>
+                  <th onClick={() => requestSort('startHour')}>Start Hour <IconSort /></th>
+                  <th onClick={() => requestSort('endHour')}>End Hour <IconSort /></th>
+                  <th>Hours</th>
                   <th>Actions</th>
                 </tr>
               ) : (
@@ -752,6 +875,35 @@ export default function ClubManagement() {
                     </tr>
                   );
                 })
+              ) : activeTab === 'Courts' ? (
+                paginated.map((court) => (
+                  <tr key={court.id}>
+                    <td>
+                      <strong>{court.name}</strong>
+                      <div className="cm-row-subtitle">Court ID #{court.id}</div>
+                    </td>
+                    <td>{court.location || '—'}</td>
+                    <td>{court.startHour}:00</td>
+                    <td>{court.endHour}:00</td>
+                    <td>
+                      <span className="cm-count-pill">{court.startHour}:00 - {court.endHour}:00</span>
+                    </td>
+                    <td>
+                      <div className="cm-actions">
+                        {canManageCourts && (
+                          <>
+                            <button className="cm-action-btn edit" title="Edit court" onClick={() => openCourtEdit(court)}>
+                              <IconEdit />
+                            </button>
+                            <button className="cm-action-btn delete" title="Delete court" onClick={() => deleteCourt(court.id, court.name)}>
+                              <IconDelete />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
               ) : (
                 paginated.map((member) => (
                   <tr key={member.id} className={selectedRows.has(member.id) ? 'selected' : ''}>
@@ -1024,6 +1176,70 @@ export default function ClubManagement() {
                 <button type="button" className="cm-cancel-btn" onClick={() => setTeamModal({ open: false, mode: 'add', team: null })}>Cancel</button>
                 <button type="submit" className="cm-save-btn" disabled={saving}>
                   {saving ? 'Saving...' : teamModal.mode === 'add' ? 'Add Team' : 'Save Team'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {courtModal.open && (
+        <div className="cm-modal-overlay" onClick={() => setCourtModal({ open: false, mode: 'add', court: null })}>
+          <div className="cm-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{courtModal.mode === 'add' ? 'Add New Court' : 'Edit Court'}</h2>
+
+            <form onSubmit={saveCourtModal}>
+              <div className="cm-form-row">
+                <div className="cm-form-group">
+                  <label>Court Name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Court 4"
+                    value={courtFormData.name}
+                    onChange={(e) => setCourtFormData({ ...courtFormData, name: e.target.value })}
+                  />
+                </div>
+                <div className="cm-form-group">
+                  <label>Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Main Hall"
+                    value={courtFormData.location}
+                    onChange={(e) => setCourtFormData({ ...courtFormData, location: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="cm-form-row">
+                <div className="cm-form-group">
+                  <label>Start Hour</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    required
+                    value={courtFormData.startHour}
+                    onChange={(e) => setCourtFormData({ ...courtFormData, startHour: e.target.value })}
+                  />
+                </div>
+                <div className="cm-form-group">
+                  <label>End Hour</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="24"
+                    required
+                    value={courtFormData.endHour}
+                    onChange={(e) => setCourtFormData({ ...courtFormData, endHour: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="cm-modal-actions">
+                <button type="button" className="cm-cancel-btn" onClick={() => setCourtModal({ open: false, mode: 'add', court: null })}>Cancel</button>
+                <button type="submit" className="cm-save-btn" disabled={saving}>
+                  {saving ? 'Saving...' : courtModal.mode === 'add' ? 'Add Court' : 'Save Court'}
                 </button>
               </div>
             </form>
