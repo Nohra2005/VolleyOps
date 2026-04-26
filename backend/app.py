@@ -99,6 +99,42 @@ def ensure_booking_schema_updates():
         )
 
 
+def ensure_communication_schema_updates():
+    inspector = inspect(db.engine)
+    table_names = inspector.get_table_names()
+
+    if "channel" in table_names:
+        columns = {column["name"] for column in inspector.get_columns("channel")}
+        statements = []
+        if "created_by_user_id" not in columns:
+            statements.append("ALTER TABLE channel ADD COLUMN created_by_user_id INTEGER NULL")
+        if "is_system" not in columns:
+            statements.append("ALTER TABLE channel ADD COLUMN is_system BOOLEAN NOT NULL DEFAULT 0")
+
+        if statements:
+            with db.engine.begin() as connection:
+                for statement in statements:
+                    connection.execute(text(statement))
+
+    if "notification_dismissal" not in table_names:
+        with db.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE notification_dismissal (
+                        id INTEGER NOT NULL AUTO_INCREMENT,
+                        user_id INTEGER NOT NULL,
+                        notification_key VARCHAR(255) NOT NULL,
+                        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (id),
+                        CONSTRAINT uq_notification_user_key UNIQUE (user_id, notification_key),
+                        CONSTRAINT fk_notification_dismissal_user FOREIGN KEY (user_id) REFERENCES user (id)
+                    )
+                    """
+                )
+            )
+
+
 def normalize_user_roles():
     users = model.User.query.all()
     changed = False
@@ -117,6 +153,7 @@ with app.app_context():
     db.create_all()
     normalize_user_roles()
     ensure_booking_schema_updates()
+    ensure_communication_schema_updates()
     #seed_database()
 
     if model.User.query.count() > 0 and model.User.query.filter_by(role=ROLE_MANAGER).count() == 0:

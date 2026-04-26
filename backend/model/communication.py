@@ -10,9 +10,12 @@ class Channel(db.Model):
     name = db.Column(db.String(120), nullable=False, unique=True)
     type = db.Column(db.String(20), nullable=False, default="TEAM")
     team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    is_system = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     team = db.relationship("Team", backref=db.backref("channels", lazy=True))
+    created_by = db.relationship("User", backref=db.backref("created_channels", lazy=True))
 
 
 class ChannelMembership(db.Model):
@@ -47,3 +50,20 @@ class Message(db.Model):
 
     channel = db.relationship("Channel", backref=db.backref("messages", lazy=True, cascade="all, delete-orphan"))
     sender = db.relationship("User", backref=db.backref("messages", lazy=True, cascade="all, delete-orphan"))
+
+
+class NotificationDismissal(db.Model):
+    __tablename__ = "notification_dismissal"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "notification_key", name="uq_notification_user_key"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    notification_key = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    user = db.relationship(
+        "User",
+        backref=db.backref("dismissed_notifications", lazy=True, cascade="all, delete-orphan"),
+    )

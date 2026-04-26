@@ -11,6 +11,7 @@ import PlayerProfile from './features/PlayerProfile';
 import PlayerStats from './features/PlayerStats';
 import CoachIBoard from './features/CoachIBoard';
 import AdminUsers from './features/AdminUsers';
+import Communication from './features/Communication';
 
 function RequireAuth({ children, allowRoles = [] }) {
   const user = useUser();
@@ -93,7 +94,7 @@ export default function App() {
             path="/communication"
             element={
               <RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH, ROLES.PLAYER]}>
-                <Home />
+                <Communication />
               </RequireAuth>
             }
           />
