@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { GUEST_USER, getInitials, normalizeSessionUser, STORAGE_KEY, UserContext } from './UserContextCore';
 
 const readStoredSession = () => {
@@ -33,6 +33,16 @@ export function UserProvider({ children }) {
   const logout = useCallback(() => {
     window.localStorage.removeItem(STORAGE_KEY);
     setSession({ token: '', user: GUEST_USER });
+  }, []);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      window.localStorage.removeItem(STORAGE_KEY);
+      setSession({ token: '', user: GUEST_USER });
+    };
+
+    window.addEventListener('volleyops:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('volleyops:unauthorized', handleUnauthorized);
   }, []);
 
   const value = useMemo(

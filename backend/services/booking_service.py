@@ -219,6 +219,75 @@ def create_booking(payload):
     return booking
 
 
+def update_booking(booking, payload):
+    normalized = validate_booking_payload(payload)
+    ensure_no_overlaps(normalized, booking_id=booking.id)
+
+    booking.title = normalized["title"].strip()
+    booking.color = normalized.get("color", booking.color or "blue")
+    booking.is_recurring = normalized["is_recurring"]
+    booking.day_of_week = normalized["day_of_week"]
+    booking.specific_date = normalized["specific_date"]
+    booking.recurrence_start_date = normalized["recurrence_start_date"]
+    booking.recurrence_end_date = normalized["recurrence_end_date"]
+    booking.notify_team = normalized["notify_team"]
+    booking.start_hour = normalized["start_hour"]
+    booking.end_hour = normalized["end_hour"]
+    booking.facility_id = normalized["facility_id"]
+    booking.team_id = normalized["team_id"]
+
+    db.session.commit()
+    return booking
+
+
+def update_booking_instance(booking, payload, instance_date):
+    if not booking.is_recurring:
+        return update_booking(booking, payload)
+
+    parsed_date = parse_date(instance_date)
+    if not parsed_date:
+        abort(400, description="instanceDate is required for single-week updates")
+
+    if booking.recurrence_start_date and parsed_date < booking.recurrence_start_date:
+        abort(400, description="This recurring series is not active on that date")
+
+    if booking.recurrence_end_date and parsed_date > booking.recurrence_end_date:
+        abort(400, description="This recurring series is not active on that date")
+
+    if parsed_date.isoweekday() != booking.day_of_week:
+        abort(400, description="That date does not match this recurring booking")
+
+    normalized = validate_booking_payload(payload)
+    normalized["is_recurring"] = False
+    normalized["specific_date"] = normalized["specific_date"] or normalized["anchor_date"]
+    normalized["day_of_week"] = None
+    normalized["recurrence_start_date"] = None
+    normalized["recurrence_end_date"] = None
+    ensure_no_overlaps(normalized)
+
+    if not any(exception.exception_date == parsed_date for exception in booking.exceptions):
+        db.session.add(BookingException(booking_id=booking.id, exception_date=parsed_date))
+
+    replacement = Booking(
+        title=normalized["title"].strip(),
+        color=normalized.get("color", booking.color or "blue"),
+        is_recurring=False,
+        day_of_week=None,
+        specific_date=normalized["specific_date"],
+        recurrence_start_date=None,
+        recurrence_end_date=None,
+        notify_team=normalized["notify_team"],
+        start_hour=normalized["start_hour"],
+        end_hour=normalized["end_hour"],
+        facility_id=normalized["facility_id"],
+        team_id=normalized["team_id"],
+        created_by_user_id=booking.created_by_user_id,
+    )
+    db.session.add(replacement)
+    db.session.commit()
+    return replacement
+
+
 def delete_booking_instance(booking, instance_date):
     parsed_date = parse_date(instance_date)
 

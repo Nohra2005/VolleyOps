@@ -10,6 +10,9 @@ export async function apiFetch(path, options = {}) {
   });
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('volleyops:unauthorized'));
+    }
     let errorMessage = `Request failed with status ${response.status}`;
     try {
       const data = await response.json();

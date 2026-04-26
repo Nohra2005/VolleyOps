@@ -44,6 +44,11 @@ const clampDuration = (duration, startHour) => {
   return Math.max(MIN_DURATION_HOURS, Math.min(duration, maxDuration));
 };
 
+const clampStartHour = (startHour, durationHours) => {
+  const maxStartHour = END_HOUR - durationHours;
+  return Math.max(START_HOUR, Math.min(startHour, maxStartHour));
+};
+
 const formatHourLabel = (hourValue) => {
   const totalMinutes = Math.round(hourValue * 60);
   const hour24 = Math.floor(totalMinutes / 60);
@@ -80,6 +85,9 @@ export default function Scheduling() {
   const navigate = useNavigate();
   const user = useUser();
   const canManageBookings = canEditScheduling(user.role);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [notifyAffectedPlayers, setNotifyAffectedPlayers] = useState(false);
+  const [applyChangesToWeekOnly, setApplyChangesToWeekOnly] = useState(false);
   const [selectedCourt, setSelectedCourt] = useState('Court 1');
   const [selectedDate, setSelectedDate] = useState(getMonday(new Date()));
   const [currentMiniMonth, setCurrentMiniMonth] = useState(
@@ -101,6 +109,42 @@ export default function Scheduling() {
     previewStartHour: 9,
     previewDuration: DEFAULT_DURATION_HOURS,
   });
+  const [dragState, setDragState] = useState({
+    active: false,
+    startX: 0,
+    startY: 0,
+    startHour: 9,
+    startDayIndex: 0,
+    previewStartHour: 9,
+    previewDayIndex: 0,
+    columnWidth: 0,
+  });
+  const [eventResizeState, setEventResizeState] = useState({
+    active: false,
+    bookingId: null,
+    edge: 'bottom',
+    startY: 0,
+    startHour: 9,
+    startDuration: DEFAULT_DURATION_HOURS,
+    previewStartHour: 9,
+    previewDuration: DEFAULT_DURATION_HOURS,
+    dayIndex: 0,
+    sourceDateIso: null,
+  });
+  const [eventDragState, setEventDragState] = useState({
+    active: false,
+    bookingId: null,
+    startX: 0,
+    startY: 0,
+    startHour: 9,
+    startDayIndex: 0,
+    previewStartHour: 9,
+    previewDayIndex: 0,
+    columnWidth: 0,
+    sourceDateIso: null,
+  });
+  const [updatingBookingId, setUpdatingBookingId] = useState(null);
+  const [bookingInteractionPreview, setBookingInteractionPreview] = useState({});
 
   const [formData, setFormData] = useState({
     title: '',
@@ -244,6 +288,16 @@ export default function Scheduling() {
       previewStartHour: defaults.startHour,
       previewDuration: defaults.durationHours,
     });
+    setDragState({
+      active: false,
+      startX: 0,
+      startY: 0,
+      startHour: defaults.startHour,
+      startDayIndex: 0,
+      previewStartHour: defaults.startHour,
+      previewDayIndex: 0,
+      columnWidth: 0,
+    });
     setIsModalOpen(true);
   };
 
@@ -259,7 +313,36 @@ export default function Scheduling() {
       previewStartHour: 9,
       previewDuration: DEFAULT_DURATION_HOURS,
     });
+    setDragState({
+      active: false,
+      startX: 0,
+      startY: 0,
+      startHour: 9,
+      startDayIndex: 0,
+      previewStartHour: 9,
+      previewDayIndex: 0,
+      columnWidth: 0,
+    });
     setFormData(getDefaultFormData());
+  };
+
+  const setBookingPreview = (bookingId, preview) => {
+    setBookingInteractionPreview((prev) => ({
+      ...prev,
+      [bookingId]: preview,
+    }));
+  };
+
+  const clearBookingPreview = (bookingId) => {
+    setBookingInteractionPreview((prev) => {
+      if (!(bookingId in prev)) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[bookingId];
+      return next;
+    });
   };
 
   const handlePrevWeek = () => {
@@ -393,12 +476,218 @@ export default function Scheduling() {
     };
   }, [formData.startHour, resizeState]);
 
-  const handleEventClick = (event, dayColumn) => {
-    if (!canManageBookings) {
-      return;
-    }
-    setDeleteModal({ open: true, event, instanceDate: dayColumn.fullDate });
-  };
+  useEffect(() => {
+    if (!dragState.active) return undefined;
+
+    const handleMouseMove = (event) => {
+      const deltaHours = (event.clientY - dragState.startY) / ROW_HEIGHT;
+      const deltaDays = dragState.columnWidth
+        ? Math.round((event.clientX - dragState.startX) / dragState.columnWidth)
+        : 0;
+      const previewStartHour = clampStartHour(
+        roundToQuarterHour(dragState.startHour + deltaHours),
+        Number(formData.durationHours)
+      );
+      const previewDayIndex = Math.max(0, Math.min(6, dragState.startDayIndex + deltaDays));
+
+      setDragState((prev) => ({
+        ...prev,
+        previewStartHour,
+        previewDayIndex,
+      }));
+    };
+
+    const handleMouseUp = () => {
+      const snappedStartHour = clampStartHour(
+        roundToQuarterHour(dragState.previewStartHour),
+        Number(formData.durationHours)
+      );
+      const nextDay = mainCalendarDays[dragState.previewDayIndex] || mainCalendarDays[0];
+
+      setFormData((prev) => ({
+        ...prev,
+        day: nextDay.value,
+        startHour: snappedStartHour,
+        bookingDate: nextDay.iso,
+        recurrenceStartDate: nextDay.iso,
+      }));
+      setDragState((prev) => ({
+        ...prev,
+        active: false,
+        startHour: snappedStartHour,
+        startDayIndex: prev.previewDayIndex,
+      }));
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragState, formData.durationHours, mainCalendarDays]);
+
+  useEffect(() => {
+    if (!eventResizeState.active) return undefined;
+
+    const handleMouseMove = (event) => {
+      const deltaHours = (event.clientY - eventResizeState.startY) / ROW_HEIGHT;
+      if (eventResizeState.edge === 'top') {
+        const rawStartHour = eventResizeState.startHour + deltaHours;
+        const maxStartHour =
+          eventResizeState.startHour + eventResizeState.startDuration - MIN_DURATION_HOURS;
+        const previewStartHour = Math.max(START_HOUR, Math.min(rawStartHour, maxStartHour));
+        const previewDuration = clampDuration(
+          eventResizeState.startDuration - (previewStartHour - eventResizeState.startHour),
+          previewStartHour
+        );
+
+        setEventResizeState((prev) => ({
+          ...prev,
+          previewStartHour,
+          previewDuration,
+        }));
+        setBookingPreview(eventResizeState.bookingId, {
+          dayIndex: eventResizeState.dayIndex,
+          startHour: previewStartHour,
+          duration: previewDuration,
+        });
+        return;
+      }
+
+      const rawDuration = clampDuration(
+        eventResizeState.startDuration + deltaHours,
+        eventResizeState.startHour
+      );
+      setEventResizeState((prev) => ({
+        ...prev,
+        previewStartHour: eventResizeState.startHour,
+        previewDuration: rawDuration,
+      }));
+      setBookingPreview(eventResizeState.bookingId, {
+        dayIndex: eventResizeState.dayIndex,
+        startHour: eventResizeState.startHour,
+        duration: rawDuration,
+      });
+    };
+
+    const handleMouseUp = async () => {
+      const booking = events.find((item) => item.id === eventResizeState.bookingId);
+      if (!booking) {
+        setEventResizeState((prev) => ({ ...prev, active: false, bookingId: null }));
+        return;
+      }
+
+      const snappedStartHour = roundToQuarterHour(eventResizeState.previewStartHour);
+      const snappedDuration = clampDuration(
+        roundToQuarterHour(eventResizeState.previewDuration),
+        snappedStartHour
+      );
+      const dayColumn = mainCalendarDays[eventResizeState.dayIndex] || mainCalendarDays[0];
+      const bookingId = eventResizeState.bookingId;
+
+      setBookingPreview(bookingId, {
+        dayIndex: eventResizeState.dayIndex,
+        startHour: snappedStartHour,
+        duration: snappedDuration,
+      });
+
+      setEventResizeState((prev) => ({
+        ...prev,
+        active: false,
+        bookingId: null,
+      }));
+
+      await persistBookingUpdate(booking, {
+        startHour: snappedStartHour,
+        endHour: snappedStartHour + snappedDuration,
+        dayColumn,
+        dayIndex: eventResizeState.dayIndex,
+        instanceDate: eventResizeState.sourceDateIso,
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [eventResizeState, events, mainCalendarDays]);
+
+  useEffect(() => {
+    if (!eventDragState.active) return undefined;
+
+    const movingBooking = events.find((item) => item.id === eventDragState.bookingId);
+    if (!movingBooking) return undefined;
+
+    const currentDuration = Number(movingBooking.endHour) - Number(movingBooking.startHour);
+
+    const handleMouseMove = (event) => {
+      const deltaHours = (event.clientY - eventDragState.startY) / ROW_HEIGHT;
+      const deltaDays = eventDragState.columnWidth
+        ? Math.round((event.clientX - eventDragState.startX) / eventDragState.columnWidth)
+        : 0;
+      const previewStartHour = clampStartHour(
+        roundToQuarterHour(eventDragState.startHour + deltaHours),
+        currentDuration
+      );
+      const previewDayIndex = Math.max(0, Math.min(6, eventDragState.startDayIndex + deltaDays));
+
+      setEventDragState((prev) => ({
+        ...prev,
+        previewStartHour,
+        previewDayIndex,
+      }));
+      setBookingPreview(eventDragState.bookingId, {
+        dayIndex: previewDayIndex,
+        startHour: previewStartHour,
+        duration: currentDuration,
+      });
+    };
+
+    const handleMouseUp = async () => {
+      const booking = events.find((item) => item.id === eventDragState.bookingId);
+      if (!booking) {
+        setEventDragState((prev) => ({ ...prev, active: false, bookingId: null }));
+        return;
+      }
+
+      const snappedStartHour = clampStartHour(
+        roundToQuarterHour(eventDragState.previewStartHour),
+        currentDuration
+      );
+      const dayColumn = mainCalendarDays[eventDragState.previewDayIndex] || mainCalendarDays[0];
+      const bookingId = eventDragState.bookingId;
+
+      setBookingPreview(bookingId, {
+        dayIndex: eventDragState.previewDayIndex,
+        startHour: snappedStartHour,
+        duration: currentDuration,
+      });
+
+      setEventDragState((prev) => ({
+        ...prev,
+        active: false,
+        bookingId: null,
+      }));
+
+      await persistBookingUpdate(booking, {
+        startHour: snappedStartHour,
+        endHour: snappedStartHour + currentDuration,
+        dayColumn,
+        dayIndex: eventDragState.previewDayIndex,
+        instanceDate: eventDragState.sourceDateIso,
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [eventDragState, events, mainCalendarDays]);
 
   const confirmDelete = async (mode) => {
     const { event, instanceDate } = deleteModal;
@@ -525,8 +814,83 @@ export default function Scheduling() {
     }
   };
 
+  const persistBookingUpdate = async (booking, overrides) => {
+    const nextStartHour = Number(overrides.startHour ?? booking.startHour);
+    const nextEndHour = Number(overrides.endHour ?? booking.endHour);
+    const nextDay = overrides.dayColumn;
+    const nextCourt = overrides.court || booking.court;
+      const selectedFacility = facilities.find((item) => item.name === nextCourt);
+
+    if (!selectedFacility?.id || !nextDay) {
+      setError('Unable to update booking with the selected court or date.');
+      return;
+    }
+
+    const payload = {
+      title: booking.title,
+      facility_id: selectedFacility.id,
+      team_id: booking.teamId,
+      day_of_week: booking.isRecurring ? nextDay.value : null,
+      specific_date: booking.isRecurring ? null : nextDay.iso,
+      recurrence_start_date: booking.isRecurring ? nextDay.iso : null,
+      recurrence_end_date: booking.recurrenceEndDate,
+      start_hour: nextStartHour,
+      end_hour: nextEndHour,
+      color: booking.color,
+      is_recurring: booking.isRecurring,
+      anchor_date: nextDay.iso,
+      notify_team: notifyAffectedPlayers,
+    };
+    const updateMode = booking.isRecurring && applyChangesToWeekOnly ? 'instance' : 'all';
+    const instanceDate = overrides.instanceDate;
+    const query =
+      updateMode === 'instance' && instanceDate
+        ? `?mode=instance&instanceDate=${instanceDate}`
+        : '';
+
+    try {
+      setUpdatingBookingId(booking.id);
+      setBookingPreview(booking.id, {
+        dayIndex: overrides.dayIndex ?? getEventDayIndex(booking),
+        startHour: nextStartHour,
+        duration: nextEndHour - nextStartHour,
+      });
+      setEvents((prev) =>
+        prev.map((item) =>
+          item.id === booking.id
+            ? {
+                ...item,
+                court: nextCourt,
+                facilityId: selectedFacility.id,
+                dayOfWeek: booking.isRecurring ? nextDay.value : item.dayOfWeek,
+                specificDate: booking.isRecurring ? null : nextDay.iso,
+                recurrenceStartDate: booking.isRecurring ? nextDay.iso : item.recurrenceStartDate,
+                startHour: nextStartHour,
+                endHour: nextEndHour,
+              }
+            : item
+        )
+      );
+
+      await apiFetch(`/api/bookings/${booking.id}${query}`, {
+        method: 'PUT',
+        token: user.token,
+        body: JSON.stringify(payload),
+      });
+
+      await loadBookings();
+      setError('');
+    } catch (err) {
+      setError(err.message);
+      await loadBookings();
+    } finally {
+      clearBookingPreview(booking.id);
+      setUpdatingBookingId(null);
+    }
+  };
+
   const handleSlotClick = (dayColumn, baseHour, event) => {
-    if (!canManageBookings) {
+    if (!canManageBookings || !isEditMode) {
       return;
     }
 
@@ -544,24 +908,41 @@ export default function Scheduling() {
     });
   };
 
+  const handleEventDeleteClick = (booking, dayColumn, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDeleteModal({ open: true, event: booking, instanceDate: dayColumn.fullDate });
+  };
+
+  const draftSlotDate = formData.isRecurring
+    ? formData.recurrenceStartDate
+    : formData.bookingDate;
+
+  const formDayIndex = Math.max(
+    0,
+    mainCalendarDays.findIndex((day) => day.iso === draftSlotDate)
+  );
+
   const displayedStartHour = resizeState.active
     ? resizeState.previewStartHour
+    : dragState.active
+      ? dragState.previewStartHour
     : Number(formData.startHour);
 
   const displayedDuration = resizeState.active
     ? resizeState.previewDuration
     : Number(formData.durationHours);
 
-  const draftSlotDate = formData.isRecurring
-    ? formData.recurrenceStartDate
-    : formData.bookingDate;
+  const displayedDayIndex = dragState.active ? dragState.previewDayIndex : formDayIndex;
+  const displayedDay = mainCalendarDays[displayedDayIndex] || mainCalendarDays[0];
+  const displayedDraftSlotDate = displayedDay?.iso || draftSlotDate;
 
   const selectedSlotLabel = useMemo(() => {
-    if (!draftSlotDate) {
+    if (!displayedDraftSlotDate) {
       return '';
     }
 
-    const [year, month, day] = draftSlotDate.split('-').map(Number);
+    const [year, month, day] = displayedDraftSlotDate.split('-').map(Number);
     const date = new Date(year, month - 1, day, 12);
 
     return `${formData.court} | ${date.toLocaleDateString('en-US', {
@@ -571,7 +952,7 @@ export default function Scheduling() {
     })} | ${formatHourLabel(displayedStartHour)} - ${formatHourLabel(
       displayedStartHour + Number(displayedDuration)
     )}`;
-  }, [displayedDuration, displayedStartHour, draftSlotDate, formData.court]);
+  }, [displayedDraftSlotDate, displayedDuration, displayedStartHour, formData.court]);
 
   const handleDraftResizeStart = (edge, event) => {
     event.preventDefault();
@@ -585,6 +966,109 @@ export default function Scheduling() {
       previewStartHour: Number(formData.startHour),
       previewDuration: Number(formData.durationHours),
     });
+  };
+
+  const handleDraftDragStart = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const columnWidth = event.currentTarget.closest('.day-column')?.getBoundingClientRect().width || 0;
+
+    setDragState({
+      active: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      startHour: Number(formData.startHour),
+      startDayIndex: formDayIndex,
+      previewStartHour: Number(formData.startHour),
+      previewDayIndex: formDayIndex,
+      columnWidth,
+    });
+  };
+
+  const getEventDayIndex = (booking) => {
+    const matchingIndex = mainCalendarDays.findIndex((day) =>
+      booking.isRecurring ? day.value === booking.dayOfWeek : day.iso === booking.specificDate
+    );
+    return Math.max(0, matchingIndex);
+  };
+
+  const handleExistingResizeStart = (booking, dayIndex, sourceDateIso, edge, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setEventResizeState({
+      active: true,
+      bookingId: booking.id,
+      edge,
+      startY: event.clientY,
+      startHour: Number(booking.startHour),
+      startDuration: Number(booking.endHour) - Number(booking.startHour),
+      previewStartHour: Number(booking.startHour),
+      previewDuration: Number(booking.endHour) - Number(booking.startHour),
+      dayIndex,
+      sourceDateIso,
+    });
+  };
+
+  const handleExistingDragStart = (booking, dayIndex, sourceDateIso, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const columnWidth = event.currentTarget.closest('.day-column')?.getBoundingClientRect().width || 0;
+
+    setEventDragState({
+      active: true,
+      bookingId: booking.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      startHour: Number(booking.startHour),
+      startDayIndex: dayIndex,
+      previewStartHour: Number(booking.startHour),
+      previewDayIndex: dayIndex,
+      columnWidth,
+      sourceDateIso,
+    });
+  };
+
+  const getRenderedBookingLayout = (booking) => {
+    const baseDayIndex = getEventDayIndex(booking);
+    const baseDuration = Number(booking.endHour) - Number(booking.startHour);
+    const preview = bookingInteractionPreview[booking.id];
+
+    if (preview) {
+      return preview;
+    }
+
+    if (eventResizeState.active && eventResizeState.bookingId === booking.id) {
+      return {
+        dayIndex: eventResizeState.dayIndex,
+        startHour: eventResizeState.previewStartHour,
+        duration: eventResizeState.previewDuration,
+      };
+    }
+
+    if (eventDragState.active && eventDragState.bookingId === booking.id) {
+      return {
+        dayIndex: eventDragState.previewDayIndex,
+        startHour: eventDragState.previewStartHour,
+        duration: baseDuration,
+      };
+    }
+
+    return {
+      dayIndex: baseDayIndex,
+      startHour: Number(booking.startHour),
+      duration: baseDuration,
+    };
+  };
+
+  const isBookingShownOnDay = (booking, dayColumn, dayIndex) => {
+    if (
+      (eventResizeState.active && eventResizeState.bookingId === booking.id) ||
+      (eventDragState.active && eventDragState.bookingId === booking.id)
+    ) {
+      return getRenderedBookingLayout(booking).dayIndex === dayIndex;
+    }
+
+    return eventOccursOnDay(booking, dayColumn);
   };
 
   return (
@@ -699,9 +1183,38 @@ export default function Scheduling() {
               <span onClick={handleNextWeek}>&#10095;</span>
             </div>
           </div>
-          <button className="back-btn" onClick={() => navigate('/')}>
-            Back <span>&rarr;</span>
-          </button>
+          <div className="header-actions">
+            {canManageBookings && (
+              <>
+                <button
+                  type="button"
+                  className={`edit-mode-btn ${isEditMode ? 'active' : ''}`}
+                  onClick={() => setIsEditMode((prev) => !prev)}
+                >
+                  {isEditMode ? 'Editing On' : 'Edit'}
+                </button>
+                <label className={`edit-notify-toggle ${isEditMode ? 'visible' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={notifyAffectedPlayers}
+                    onChange={(event) => setNotifyAffectedPlayers(event.target.checked)}
+                  />
+                  <span>Notify affected players</span>
+                </label>
+                <label className={`edit-notify-toggle ${isEditMode ? 'visible' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={applyChangesToWeekOnly}
+                    onChange={(event) => setApplyChangesToWeekOnly(event.target.checked)}
+                  />
+                  <span>This week only</span>
+                </label>
+              </>
+            )}
+            <button className="back-btn" onClick={() => navigate('/')}>
+              Back <span>&rarr;</span>
+            </button>
+          </div>
         </header>
 
         <div className="calendar-grid-header">
@@ -735,7 +1248,7 @@ export default function Scheduling() {
                 canManageBookings &&
                 isModalOpen &&
                 selectedCourt === formData.court &&
-                draftSlotDate === dayColumn.iso;
+                displayedDraftSlotDate === dayColumn.iso;
 
               return (
                 <div key={dayIndex} className="day-column">
@@ -743,15 +1256,15 @@ export default function Scheduling() {
                     <button
                       key={hour.value}
                       type="button"
-                      className={`grid-cell ${canManageBookings ? 'grid-cell-interactive' : ''}`}
+                      className={`grid-cell ${canManageBookings && isEditMode ? 'grid-cell-interactive' : ''}`}
                       onClick={(event) => handleSlotClick(dayColumn, hour.value, event)}
                       aria-label={
-                        canManageBookings
+                        canManageBookings && isEditMode
                           ? `Create booking on ${dayColumn.name} at ${hour.label} in ${selectedCourt}`
                           : undefined
                       }
                     >
-                      {canManageBookings && <span className="grid-cell-plus">+</span>}
+                      {canManageBookings && isEditMode && <span className="grid-cell-plus">+</span>}
                     </button>
                   ))}
 
@@ -765,6 +1278,14 @@ export default function Scheduling() {
                     >
                       <button
                         type="button"
+                        className="draft-close-btn"
+                        onClick={closeCreateModal}
+                        aria-label="Discard draft booking"
+                      >
+                        x
+                      </button>
+                      <button
+                        type="button"
                         className="draft-resize-handle draft-resize-handle-top"
                         onMouseDown={(event) => handleDraftResizeStart('top', event)}
                         aria-label="Adjust booking start time"
@@ -772,9 +1293,12 @@ export default function Scheduling() {
                       <span className="event-title">
                         {formData.title.trim() || 'New booking'}
                       </span>
-                      <span className="delete-hint">
-                        Resize from the top or bottom edge
-                      </span>
+                      <button
+                        type="button"
+                        className="draft-drag-body"
+                        onMouseDown={handleDraftDragStart}
+                        aria-label="Move booking to another time slot"
+                      />
                       <button
                         type="button"
                         className="draft-resize-handle draft-resize-handle-bottom"
@@ -787,25 +1311,68 @@ export default function Scheduling() {
                   {events
                     .filter(
                       (event) =>
-                        event.court === selectedCourt && eventOccursOnDay(event, dayColumn)
+                        event.court === selectedCourt &&
+                        isBookingShownOnDay(event, dayColumn, dayIndex)
                     )
-                    .map((event) => (
-                      <div
-                        key={`${event.id}-${dayColumn.iso}`}
-                        className={`event-card ${event.color}`}
-                        title={canManageBookings ? 'Click to delete' : event.title}
-                        style={{
-                          top: `${(event.startHour - START_HOUR) * ROW_HEIGHT}px`,
-                          height: `${(event.endHour - event.startHour) * ROW_HEIGHT}px`,
-                        }}
-                        onClick={() => handleEventClick(event, dayColumn)}
-                      >
-                        <span className="event-title">{event.title}</span>
-                        <span className="delete-hint">
-                          {event.isRecurring ? 'Recurring booking' : 'One-time booking'}
-                        </span>
-                      </div>
-                    ))}
+                    .map((event) => {
+                      const layout = getRenderedBookingLayout(event);
+                      const isUpdating = updatingBookingId === event.id;
+
+                      return (
+                        <div
+                          key={`${event.id}-${dayColumn.iso}`}
+                          className={`event-card ${event.color} ${canManageBookings && isEditMode ? 'editable-event-card' : ''} ${isUpdating ? 'event-card-updating' : ''}`}
+                          title={event.title}
+                          style={{
+                            top: `${(layout.startHour - START_HOUR) * ROW_HEIGHT}px`,
+                            height: `${layout.duration * ROW_HEIGHT}px`,
+                          }}
+                        >
+                          {canManageBookings && isEditMode && (
+                            <button
+                              type="button"
+                              className="event-resize-handle event-resize-handle-top"
+                              onMouseDown={(mouseEvent) =>
+                                handleExistingResizeStart(event, layout.dayIndex, dayColumn.iso, 'top', mouseEvent)
+                              }
+                              aria-label={`Adjust start time for ${event.title}`}
+                            />
+                          )}
+
+                          <div
+                            className={`event-interaction-body ${canManageBookings && isEditMode ? 'is-draggable' : ''}`}
+                            onMouseDown={
+                              canManageBookings && isEditMode
+                                ? (mouseEvent) => handleExistingDragStart(event, layout.dayIndex, dayColumn.iso, mouseEvent)
+                                : undefined
+                            }
+                          >
+                            {canManageBookings && isEditMode && (
+                              <button
+                                type="button"
+                                className="event-delete-btn"
+                                onClick={(mouseEvent) => handleEventDeleteClick(event, dayColumn, mouseEvent)}
+                                aria-label={`Delete ${event.title}`}
+                              >
+                                x
+                              </button>
+                            )}
+                            <span className="event-title">{event.title}</span>
+                          </div>
+
+                          {canManageBookings && isEditMode && (
+                            <button
+                              type="button"
+                              className="event-resize-handle event-resize-handle-bottom"
+                              onMouseDown={(mouseEvent) =>
+                                handleExistingResizeStart(event, layout.dayIndex, dayColumn.iso, 'bottom', mouseEvent)
+                              }
+                              aria-label={`Adjust end time for ${event.title}`}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               );
             })}
@@ -935,23 +1502,6 @@ export default function Scheduling() {
                 />
                 <label htmlFor="recurring">Repeat weekly</label>
               </div>
-
-              {formData.isRecurring && (
-                <>
-                  <div className="repeat-note">
-                    This booking will repeat weekly from the selected calendar slot.
-                  </div>
-                  <div className="form-group">
-                    <label>Repeat Start Date</label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.recurrenceStartDate}
-                      onChange={(e) => handleRecurringStartChange(e.target.value)}
-                    />
-                  </div>
-                </>
-              )}
 
               <div className="notify-row">
                 <label className="notify-checkbox">

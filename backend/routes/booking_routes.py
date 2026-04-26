@@ -11,6 +11,8 @@ from services.booking_service import (
     delete_booking_instance,
     parse_date,
     serialize_booking,
+    update_booking,
+    update_booking_instance,
 )
 
 booking_bp = Blueprint("booking", __name__, url_prefix="/api/bookings")
@@ -79,3 +81,23 @@ def delete_booking_route(booking_id):
     db.session.delete(booking)
     db.session.commit()
     return jsonify({"message": "Booking deleted"})
+
+
+@booking_bp.put("/<int:booking_id>")
+@jwt_required()
+def update_booking_route(booking_id):
+    _, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH)
+    if error:
+        return error
+
+    booking = Booking.query.get_or_404(booking_id)
+    payload = request.get_json(silent=True) or {}
+    mode = request.args.get("mode", "all")
+    instance_date = request.args.get("instanceDate")
+
+    if mode == "instance":
+        updated_booking = update_booking_instance(booking, payload, instance_date)
+    else:
+        updated_booking = update_booking(booking, payload)
+
+    return jsonify(serialize_booking(updated_booking))
