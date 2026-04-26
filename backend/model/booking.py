@@ -15,8 +15,8 @@ class Booking(db.Model):
     recurrence_start_date = db.Column(db.Date, nullable=True)
     recurrence_end_date = db.Column(db.Date, nullable=True)
     notify_team = db.Column(db.Boolean, nullable=False, default=False)
-    start_hour = db.Column(db.Integer, nullable=False)
-    end_hour = db.Column(db.Integer, nullable=False)
+    start_hour = db.Column(db.Numeric(5, 2, asdecimal=False), nullable=False)
+    end_hour = db.Column(db.Numeric(5, 2, asdecimal=False), nullable=False)
     facility_id = db.Column(db.Integer, db.ForeignKey("facility.id"), nullable=False)
     team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=True)
     

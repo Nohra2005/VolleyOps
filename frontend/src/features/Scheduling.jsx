@@ -9,6 +9,10 @@ import './Scheduling.css';
 const START_HOUR = 8;
 const END_HOUR = 22;
 const ROW_HEIGHT = 100;
+const QUARTER_HOUR = 0.25;
+const DEFAULT_DURATION_HOURS = 1;
+const MIN_DURATION_HOURS = 0.25;
+const BOOKING_COLORS = ['blue', 'green', 'purple'];
 
 const getMonday = (date) => {
   const d = new Date(date);
@@ -33,10 +37,21 @@ const toIsoDate = (value) => {
   return date.toISOString().slice(0, 10);
 };
 
-const formatHourLabel = (hour) => {
-  if (hour === 12) return '12 PM';
-  if (hour > 12) return `${hour - 12} PM`;
-  return `${hour} AM`;
+const roundToQuarterHour = (value) => Math.round(value / QUARTER_HOUR) * QUARTER_HOUR;
+
+const clampDuration = (duration, startHour) => {
+  const maxDuration = END_HOUR - startHour;
+  return Math.max(MIN_DURATION_HOURS, Math.min(duration, maxDuration));
+};
+
+const formatHourLabel = (hourValue) => {
+  const totalMinutes = Math.round(hourValue * 60);
+  const hour24 = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const suffix = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  const minuteText = minutes === 0 ? '' : `:${minutes.toString().padStart(2, '0')}`;
+  return `${hour12}${minuteText} ${suffix}`;
 };
 
 const getDefaultCreateDate = () => {
@@ -76,21 +91,27 @@ export default function Scheduling() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [notifyToast, setNotifyToast] = useState('');
-
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [resizeState, setResizeState] = useState({
+    active: false,
+    edge: 'bottom',
+    startY: 0,
+    startHour: 9,
+    startDuration: DEFAULT_DURATION_HOURS,
+    previewStartHour: 9,
+    previewDuration: DEFAULT_DURATION_HOURS,
+  });
+
   const [formData, setFormData] = useState({
     title: '',
     teamId: '',
     day: 1,
     startHour: 9,
-    endHour: 11,
-    color: 'blue',
-    isRecurring: true,
+    durationHours: DEFAULT_DURATION_HOURS,
+    isRecurring: false,
     court: 'Court 1',
     bookingDate: getDefaultCreateDate(),
     recurrenceStartDate: getDefaultCreateDate(),
-    recurrenceEndDate: '',
     notifyTeam: false,
   });
 
@@ -108,6 +129,7 @@ export default function Scheduling() {
     return list;
   }, []);
 
+  const slotHours = useMemo(() => hours.filter((hour) => hour.value < END_HOUR), [hours]);
   const currentMonday = useMemo(() => getMonday(selectedDate), [selectedDate]);
 
   const currentSunday = useMemo(() => {
@@ -123,20 +145,20 @@ export default function Scheduling() {
     if (sameMonth && sameYear) {
       return `${currentMonday.toLocaleString('default', {
         month: 'long',
-      })} ${currentMonday.getDate()}–${currentSunday.getDate()}, ${currentMonday.getFullYear()}`;
+      })} ${currentMonday.getDate()}-${currentSunday.getDate()}, ${currentMonday.getFullYear()}`;
     }
 
     if (sameYear) {
       return `${currentMonday.toLocaleString('default', {
         month: 'short',
-      })} ${currentMonday.getDate()} – ${currentSunday.toLocaleString('default', {
+      })} ${currentMonday.getDate()} - ${currentSunday.toLocaleString('default', {
         month: 'short',
       })} ${currentSunday.getDate()}, ${currentMonday.getFullYear()}`;
     }
 
     return `${currentMonday.toLocaleString('default', {
       month: 'short',
-    })} ${currentMonday.getDate()}, ${currentMonday.getFullYear()} – ${currentSunday.toLocaleString('default', {
+    })} ${currentMonday.getDate()}, ${currentMonday.getFullYear()} - ${currentSunday.toLocaleString('default', {
       month: 'short',
     })} ${currentSunday.getDate()}, ${currentSunday.getFullYear()}`;
   }, [currentMonday, currentSunday]);
@@ -173,13 +195,11 @@ export default function Scheduling() {
       teamId: teams[0] ? String(teams[0].id) : '',
       day: firstDay.value,
       startHour: 9,
-      endHour: 11,
-      color: 'blue',
-      isRecurring: true,
+      durationHours: DEFAULT_DURATION_HOURS,
+      isRecurring: false,
       court: fallbackCourt,
       bookingDate: firstDay.iso,
       recurrenceStartDate: firstDay.iso,
-      recurrenceEndDate: '',
       notifyTeam: false,
     };
   };
@@ -197,20 +217,48 @@ export default function Scheduling() {
     }
   };
 
-  const openCreateModal = (prefillDay = null) => {
+  const openCreateModal = (prefill = null) => {
     const defaults = getDefaultFormData();
-    if (prefillDay) {
-      defaults.day = prefillDay.value;
-      defaults.bookingDate = prefillDay.iso;
-      defaults.recurrenceStartDate = prefillDay.iso;
+    if (prefill?.value) {
+      defaults.day = prefill.value;
+      defaults.bookingDate = prefill.iso;
+      defaults.recurrenceStartDate = prefill.iso;
+    }
+    if (prefill?.court) {
+      defaults.court = prefill.court;
+    }
+    if (typeof prefill?.startHour === 'number') {
+      defaults.startHour = prefill.startHour;
+      defaults.durationHours = clampDuration(
+        prefill.durationHours ?? DEFAULT_DURATION_HOURS,
+        prefill.startHour
+      );
     }
     setFormData(defaults);
+    setResizeState({
+      active: false,
+      edge: 'bottom',
+      startY: 0,
+      startHour: defaults.startHour,
+      startDuration: defaults.durationHours,
+      previewStartHour: defaults.startHour,
+      previewDuration: defaults.durationHours,
+    });
     setIsModalOpen(true);
   };
 
   const closeCreateModal = () => {
     setIsModalOpen(false);
     setSaving(false);
+    setResizeState({
+      active: false,
+      edge: 'bottom',
+      startY: 0,
+      startHour: 9,
+      startDuration: DEFAULT_DURATION_HOURS,
+      previewStartHour: 9,
+      previewDuration: DEFAULT_DURATION_HOURS,
+    });
     setFormData(getDefaultFormData());
   };
 
@@ -271,12 +319,6 @@ export default function Scheduling() {
   }, [weekStartIso, user.token]);
 
   useEffect(() => {
-    if (!notifyToast) return undefined;
-    const timer = window.setTimeout(() => setNotifyToast(''), 2500);
-    return () => window.clearTimeout(timer);
-  }, [notifyToast]);
-
-  useEffect(() => {
     if (!isModalOpen) return undefined;
 
     const handleEscapeKey = (event) => {
@@ -288,6 +330,68 @@ export default function Scheduling() {
     window.addEventListener('keydown', handleEscapeKey);
     return () => window.removeEventListener('keydown', handleEscapeKey);
   }, [isModalOpen]);
+
+  useEffect(() => {
+    if (!resizeState.active) return undefined;
+
+    const handleMouseMove = (event) => {
+      const deltaHours = (event.clientY - resizeState.startY) / ROW_HEIGHT;
+      if (resizeState.edge === 'top') {
+        const rawStartHour = resizeState.startHour + deltaHours;
+        const maxStartHour = resizeState.startHour + resizeState.startDuration - MIN_DURATION_HOURS;
+        const previewStartHour = Math.max(START_HOUR, Math.min(rawStartHour, maxStartHour));
+        const previewDuration = clampDuration(
+          resizeState.startDuration - (previewStartHour - resizeState.startHour),
+          previewStartHour
+        );
+
+        setResizeState((prev) => ({
+          ...prev,
+          previewStartHour,
+          previewDuration,
+        }));
+        return;
+      }
+
+      const rawDuration = clampDuration(
+        resizeState.startDuration + deltaHours,
+        resizeState.startHour
+      );
+      setResizeState((prev) => ({
+        ...prev,
+        previewStartHour: resizeState.startHour,
+        previewDuration: rawDuration,
+      }));
+    };
+
+    const handleMouseUp = () => {
+      const snappedStartHour = roundToQuarterHour(resizeState.previewStartHour);
+      const snappedDuration = clampDuration(
+        roundToQuarterHour(resizeState.previewDuration),
+        snappedStartHour
+      );
+      setFormData((prev) => ({
+        ...prev,
+        startHour: snappedStartHour,
+        durationHours: snappedDuration,
+      }));
+      setResizeState((prev) => ({
+        ...prev,
+        active: false,
+        startHour: snappedStartHour,
+        previewStartHour: snappedStartHour,
+        startDuration: snappedDuration,
+        previewDuration: snappedDuration,
+      }));
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [formData.startHour, resizeState]);
 
   const handleEventClick = (event, dayColumn) => {
     if (!canManageBookings) {
@@ -358,29 +462,7 @@ export default function Scheduling() {
       ...prev,
       recurrenceStartDate: value,
       day: normalizedWeekday,
-      recurrenceEndDate:
-        prev.recurrenceEndDate && prev.recurrenceEndDate < value ? value : prev.recurrenceEndDate,
     }));
-  };
-
-  const handleQuickRange = (weeks) => {
-    if (!formData.recurrenceStartDate) return;
-    const start = new Date(formData.recurrenceStartDate);
-    start.setHours(12, 0, 0, 0);
-    start.setDate(start.getDate() + weeks * 7);
-    setFormData((prev) => ({
-      ...prev,
-      recurrenceEndDate: toIsoDate(start),
-    }));
-  };
-
-  const handleNotifyTeamClick = () => {
-    const teamName = teams.find((team) => String(team.id) === String(formData.teamId))?.name;
-    setNotifyToast(
-      teamName
-        ? `Notify team placeholder ready for ${teamName}.`
-        : 'Notify team placeholder button is ready for backend logic.'
-    );
   };
 
   const handleCreateBooking = async (e) => {
@@ -400,6 +482,15 @@ export default function Scheduling() {
     recurringDate.setHours(12, 0, 0, 0);
     const recurringWeekday = recurringDate.getDay();
     const dayOfWeek = recurringWeekday === 0 ? 7 : recurringWeekday;
+    const selectedTeam = teams.find((team) => String(team.id) === String(formData.teamId));
+    const teamColor = selectedTeam
+      ? BOOKING_COLORS[selectedTeam.id % BOOKING_COLORS.length]
+      : BOOKING_COLORS[0];
+    const snappedDuration = clampDuration(
+      roundToQuarterHour(formData.durationHours),
+      Number(formData.startHour)
+    );
+    const endHour = Number(formData.startHour) + snappedDuration;
 
     try {
       setSaving(true);
@@ -414,13 +505,10 @@ export default function Scheduling() {
           day_of_week: formData.isRecurring ? dayOfWeek : null,
           specific_date: formData.isRecurring ? null : formData.bookingDate,
           recurrence_start_date: formData.isRecurring ? formData.recurrenceStartDate : null,
-          recurrence_end_date:
-            formData.isRecurring && formData.recurrenceEndDate
-              ? formData.recurrenceEndDate
-              : null,
+          recurrence_end_date: null,
           start_hour: Number(formData.startHour),
-          end_hour: Number(formData.endHour),
-          color: formData.color,
+          end_hour: endHour,
+          color: teamColor,
           is_recurring: formData.isRecurring,
           anchor_date: formData.isRecurring ? formData.recurrenceStartDate : formData.bookingDate,
           notify_team: formData.notifyTeam,
@@ -437,6 +525,68 @@ export default function Scheduling() {
     }
   };
 
+  const handleSlotClick = (dayColumn, baseHour, event) => {
+    if (!canManageBookings) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const offset = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+    const quarterIndex = Math.min(3, Math.floor((offset / rect.height) * 4));
+    const startHour = baseHour + quarterIndex * QUARTER_HOUR;
+
+    openCreateModal({
+      value: dayColumn.value,
+      iso: dayColumn.iso,
+      court: selectedCourt,
+      startHour,
+      durationHours: DEFAULT_DURATION_HOURS,
+    });
+  };
+
+  const displayedStartHour = resizeState.active
+    ? resizeState.previewStartHour
+    : Number(formData.startHour);
+
+  const displayedDuration = resizeState.active
+    ? resizeState.previewDuration
+    : Number(formData.durationHours);
+
+  const draftSlotDate = formData.isRecurring
+    ? formData.recurrenceStartDate
+    : formData.bookingDate;
+
+  const selectedSlotLabel = useMemo(() => {
+    if (!draftSlotDate) {
+      return '';
+    }
+
+    const [year, month, day] = draftSlotDate.split('-').map(Number);
+    const date = new Date(year, month - 1, day, 12);
+
+    return `${formData.court} | ${date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    })} | ${formatHourLabel(displayedStartHour)} - ${formatHourLabel(
+      displayedStartHour + Number(displayedDuration)
+    )}`;
+  }, [displayedDuration, displayedStartHour, draftSlotDate, formData.court]);
+
+  const handleDraftResizeStart = (edge, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setResizeState({
+      active: true,
+      edge,
+      startY: event.clientY,
+      startHour: Number(formData.startHour),
+      startDuration: Number(formData.durationHours),
+      previewStartHour: Number(formData.startHour),
+      previewDuration: Number(formData.durationHours),
+    });
+  };
+
   return (
     <div className="scheduling-container">
       <aside className="sidebar">
@@ -444,12 +594,6 @@ export default function Scheduling() {
           <img src={logo} alt="VolleyOps" className="sidebar-logo" />
           <h1 className="sidebar-title">SCHEDULING</h1>
         </div>
-
-        {canManageBookings && (
-          <button className="create-booking-btn" onClick={() => openCreateModal()}>
-            <span>+</span> Create Booking
-          </button>
-        )}
 
         <div className="court-filters">
           {facilities.map(({ name: court }) => (
@@ -586,36 +730,85 @@ export default function Scheduling() {
           </div>
 
           <div className="days-grid">
-            {mainCalendarDays.map((dayColumn, dayIndex) => (
-              <div key={dayIndex} className="day-column">
-                {hours.map((_, i) => (
-                  <div key={i} className="grid-cell" />
-                ))}
+            {mainCalendarDays.map((dayColumn, dayIndex) => {
+              const showDraft =
+                canManageBookings &&
+                isModalOpen &&
+                selectedCourt === formData.court &&
+                draftSlotDate === dayColumn.iso;
 
-                {events
-                  .filter(
-                    (event) =>
-                      event.court === selectedCourt && eventOccursOnDay(event, dayColumn)
-                  )
-                  .map((event) => (
-                    <div
-                      key={`${event.id}-${dayColumn.iso}`}
-                      className={`event-card ${event.color}`}
-                      title={canManageBookings ? 'Click to delete' : event.title}
-                      style={{
-                        top: `${(event.startHour - START_HOUR) * ROW_HEIGHT}px`,
-                        height: `${(event.endHour - event.startHour) * ROW_HEIGHT}px`,
-                      }}
-                      onClick={() => handleEventClick(event, dayColumn)}
+              return (
+                <div key={dayIndex} className="day-column">
+                  {slotHours.map((hour) => (
+                    <button
+                      key={hour.value}
+                      type="button"
+                      className={`grid-cell ${canManageBookings ? 'grid-cell-interactive' : ''}`}
+                      onClick={(event) => handleSlotClick(dayColumn, hour.value, event)}
+                      aria-label={
+                        canManageBookings
+                          ? `Create booking on ${dayColumn.name} at ${hour.label} in ${selectedCourt}`
+                          : undefined
+                      }
                     >
-                      <span className="event-title">{event.title}</span>
-                      <span className="delete-hint">
-                        {event.isRecurring ? 'Recurring booking' : 'One-time booking'}
-                      </span>
-                    </div>
+                      {canManageBookings && <span className="grid-cell-plus">+</span>}
+                    </button>
                   ))}
-              </div>
-            ))}
+
+                  {showDraft && (
+                    <div
+                      className="event-card draft-event-card"
+                      style={{
+                        top: `${(displayedStartHour - START_HOUR) * ROW_HEIGHT}px`,
+                        height: `${Number(displayedDuration) * ROW_HEIGHT}px`,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="draft-resize-handle draft-resize-handle-top"
+                        onMouseDown={(event) => handleDraftResizeStart('top', event)}
+                        aria-label="Adjust booking start time"
+                      />
+                      <span className="event-title">
+                        {formData.title.trim() || 'New booking'}
+                      </span>
+                      <span className="delete-hint">
+                        Resize from the top or bottom edge
+                      </span>
+                      <button
+                        type="button"
+                        className="draft-resize-handle draft-resize-handle-bottom"
+                        onMouseDown={(event) => handleDraftResizeStart('bottom', event)}
+                        aria-label="Adjust booking end time"
+                      />
+                    </div>
+                  )}
+
+                  {events
+                    .filter(
+                      (event) =>
+                        event.court === selectedCourt && eventOccursOnDay(event, dayColumn)
+                    )
+                    .map((event) => (
+                      <div
+                        key={`${event.id}-${dayColumn.iso}`}
+                        className={`event-card ${event.color}`}
+                        title={canManageBookings ? 'Click to delete' : event.title}
+                        style={{
+                          top: `${(event.startHour - START_HOUR) * ROW_HEIGHT}px`,
+                          height: `${(event.endHour - event.startHour) * ROW_HEIGHT}px`,
+                        }}
+                        onClick={() => handleEventClick(event, dayColumn)}
+                      >
+                        <span className="event-title">{event.title}</span>
+                        <span className="delete-hint">
+                          {event.isRecurring ? 'Recurring booking' : 'One-time booking'}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       </main>
@@ -626,7 +819,7 @@ export default function Scheduling() {
             className="modal-content delete-modal"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="delete-modal-icon">🗓️</div>
+            <div className="delete-modal-icon">[ ]</div>
             <h2>Delete "{deleteModal.event?.title}"?</h2>
 
             {deleteModal.event?.isRecurring ? (
@@ -677,12 +870,10 @@ export default function Scheduling() {
       )}
 
       {canManageBookings && isModalOpen && (
-        <div className="modal-overlay" onClick={closeCreateModal}>
+        <div className="booking-panel-shell">
           <div
-            className="modal-content scheduling-modal"
-            onClick={(e) => e.stopPropagation()}
+            className="modal-content scheduling-modal booking-panel"
             role="dialog"
-            aria-modal="true"
             aria-labelledby="create-booking-title"
           >
             <div className="modal-header">
@@ -693,11 +884,16 @@ export default function Scheduling() {
                 onClick={closeCreateModal}
                 aria-label="Close booking dialog"
               >
-                ×
+                x
               </button>
             </div>
 
             <form onSubmit={handleCreateBooking}>
+              <div className="slot-summary-card">
+                <span className="slot-summary-label">Selected slot</span>
+                <strong>{selectedSlotLabel}</strong>
+              </div>
+
               <div className="form-group">
                 <label>Event Name</label>
                 <input
@@ -728,22 +924,6 @@ export default function Scheduling() {
                 </select>
               </div>
 
-              <div className="form-group">
-                <label>Court</label>
-                <select
-                  value={formData.court}
-                  onChange={(e) =>
-                    setFormData({ ...formData, court: e.target.value })
-                  }
-                >
-                  {facilities.map((facility) => (
-                    <option key={facility.id} value={facility.name}>
-                      {facility.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <div className="checkbox-group">
                 <input
                   type="checkbox"
@@ -756,116 +936,22 @@ export default function Scheduling() {
                 <label htmlFor="recurring">Repeat weekly</label>
               </div>
 
-              {formData.isRecurring ? (
+              {formData.isRecurring && (
                 <>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Start Date</label>
-                      <input
-                        type="date"
-                        required
-                        value={formData.recurrenceStartDate}
-                        onChange={(e) => handleRecurringStartChange(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>End Date</label>
-                      <input
-                        type="date"
-                        min={formData.recurrenceStartDate}
-                        value={formData.recurrenceEndDate}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            recurrenceEndDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
+                  <div className="repeat-note">
+                    This booking will repeat weekly from the selected calendar slot.
                   </div>
-
-                  <div className="quick-range-row">
-                    <button type="button" onClick={() => handleQuickRange(4)}>
-                      +4 weeks
-                    </button>
-                    <button type="button" onClick={() => handleQuickRange(8)}>
-                      +8 weeks
-                    </button>
-                    <button type="button" onClick={() => handleQuickRange(12)}>
-                      +12 weeks
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormData({ ...formData, recurrenceEndDate: '' })
-                      }
-                    >
-                      No end
-                    </button>
+                  <div className="form-group">
+                    <label>Repeat Start Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.recurrenceStartDate}
+                      onChange={(e) => handleRecurringStartChange(e.target.value)}
+                    />
                   </div>
                 </>
-              ) : (
-                <div className="form-group">
-                  <label>Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.bookingDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, bookingDate: e.target.value })
-                    }
-                  />
-                </div>
               )}
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Color</label>
-                  <select
-                    value={formData.color}
-                    onChange={(e) =>
-                      setFormData({ ...formData, color: e.target.value })
-                    }
-                  >
-                    <option value="blue">Blue</option>
-                    <option value="green">Green</option>
-                    <option value="purple">Purple</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Start</label>
-                  <select
-                    value={formData.startHour}
-                    onChange={(e) =>
-                      setFormData({ ...formData, startHour: e.target.value })
-                    }
-                  >
-                    {hours.map((h) => (
-                      <option key={h.value} value={h.value}>
-                        {h.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>End</label>
-                  <select
-                    value={formData.endHour}
-                    onChange={(e) =>
-                      setFormData({ ...formData, endHour: e.target.value })
-                    }
-                  >
-                    {hours.map((h) => (
-                      <option key={h.value} value={h.value}>
-                        {h.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
 
               <div className="notify-row">
                 <label className="notify-checkbox">
@@ -876,16 +962,8 @@ export default function Scheduling() {
                       setFormData({ ...formData, notifyTeam: e.target.checked })
                     }
                   />
-                  <span>Save "notify team" flag</span>
+                  <span>Notify team members of new booking</span>
                 </label>
-
-                <button
-                  type="button"
-                  className="notify-team-btn"
-                  onClick={handleNotifyTeamClick}
-                >
-                  Notify Team
-                </button>
               </div>
 
               <div className="modal-actions sticky-modal-actions">
@@ -904,8 +982,6 @@ export default function Scheduling() {
           </div>
         </div>
       )}
-
-      {notifyToast && <div className="notify-toast">{notifyToast}</div>}
     </div>
   );
 }

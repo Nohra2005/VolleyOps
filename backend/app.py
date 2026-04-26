@@ -52,7 +52,8 @@ def ensure_booking_schema_updates():
     if "booking" not in inspector.get_table_names():
         return
 
-    columns = {column["name"] for column in inspector.get_columns("booking")}
+    column_details = {column["name"]: column for column in inspector.get_columns("booking")}
+    columns = set(column_details)
     statements = []
 
     if "recurrence_start_date" not in columns:
@@ -66,6 +67,16 @@ def ensure_booking_schema_updates():
     if "notify_team" not in columns:
         statements.append(
             "ALTER TABLE booking ADD COLUMN notify_team BOOLEAN NOT NULL DEFAULT 0"
+        )
+    start_hour_type = str(column_details.get("start_hour", {}).get("type", "")).lower()
+    end_hour_type = str(column_details.get("end_hour", {}).get("type", "")).lower()
+    if "int" in start_hour_type:
+        statements.append(
+            "ALTER TABLE booking MODIFY COLUMN start_hour DECIMAL(5,2) NOT NULL"
+        )
+    if "int" in end_hour_type:
+        statements.append(
+            "ALTER TABLE booking MODIFY COLUMN end_hour DECIMAL(5,2) NOT NULL"
         )
 
     if not statements:

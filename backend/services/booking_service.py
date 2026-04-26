@@ -19,6 +19,14 @@ def _iso(value):
     return value.isoformat() if value else None
 
 
+def _round_quarter_hour(value):
+    return round(round(float(value) * 4) / 4, 2)
+
+
+def _is_quarter_hour(value):
+    return abs(float(value) * 4 - round(float(value) * 4)) < 1e-9
+
+
 def serialize_booking(booking):
     exception_dates = sorted(
         exception.exception_date.isoformat() for exception in booking.exceptions
@@ -34,8 +42,8 @@ def serialize_booking(booking):
         "specificDate": _iso(booking.specific_date),
         "recurrenceStartDate": _iso(booking.recurrence_start_date),
         "recurrenceEndDate": _iso(booking.recurrence_end_date),
-        "startHour": booking.start_hour,
-        "endHour": booking.end_hour,
+        "startHour": float(booking.start_hour),
+        "endHour": float(booking.end_hour),
         "color": booking.color,
         "isRecurring": booking.is_recurring,
         "notifyTeam": bool(getattr(booking, "notify_team", False)),
@@ -46,8 +54,8 @@ def serialize_booking(booking):
 def _normalize_payload(payload):
     normalized = dict(payload)
     normalized["is_recurring"] = bool(payload.get("is_recurring"))
-    normalized["start_hour"] = int(payload["start_hour"])
-    normalized["end_hour"] = int(payload["end_hour"])
+    normalized["start_hour"] = _round_quarter_hour(payload["start_hour"])
+    normalized["end_hour"] = _round_quarter_hour(payload["end_hour"])
     normalized["facility_id"] = int(payload["facility_id"])
     normalized["team_id"] = int(payload["team_id"]) if payload.get("team_id") else None
     normalized["day_of_week"] = (
@@ -115,6 +123,9 @@ def validate_booking_payload(payload):
 
     if normalized["end_hour"] <= normalized["start_hour"]:
         abort(400, description="End hour must be later than start hour")
+
+    if not _is_quarter_hour(normalized["start_hour"]) or not _is_quarter_hour(normalized["end_hour"]):
+        abort(400, description="Booking times must align to 15-minute intervals")
 
     Facility.query.get_or_404(normalized["facility_id"])
     if normalized["team_id"]:
