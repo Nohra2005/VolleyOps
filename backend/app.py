@@ -135,6 +135,19 @@ def ensure_communication_schema_updates():
             )
 
 
+def ensure_stats_schema_updates():
+    inspector = inspect(db.engine)
+    if "player_match_stat" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("player_match_stat")}
+    if "coach_notes" in columns:
+        return
+
+    with db.engine.begin() as connection:
+        connection.execute(text("ALTER TABLE player_match_stat ADD COLUMN coach_notes TEXT NULL"))
+
+
 def normalize_user_roles():
     users = model.User.query.all()
     changed = False
@@ -154,6 +167,7 @@ with app.app_context():
     normalize_user_roles()
     ensure_booking_schema_updates()
     ensure_communication_schema_updates()
+    ensure_stats_schema_updates()
     seed_database()
 
     if model.User.query.count() > 0 and model.User.query.filter_by(role=ROLE_MANAGER).count() == 0:
