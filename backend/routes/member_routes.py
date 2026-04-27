@@ -298,6 +298,22 @@ def delete_member(member_id):
         return jsonify({"error": "You cannot delete your own account from Club Management"}), 400
 
     member = User.query.get_or_404(member_id)
+
+    from model import AttendanceResponse
+    from model.stats import AIFeedback, Match, PlayerMatchStat, TeamMatchSummary
+    from model.communication import Channel
+    from model.booking import Booking
+    from model.reference import Team
+
+    PlayerMatchStat.query.filter_by(player_id=member_id).delete()
+    AttendanceResponse.query.filter_by(user_id=member_id).delete()
+    Booking.query.filter_by(created_by_user_id=member_id).update({"created_by_user_id": None})
+    Match.query.filter_by(created_by_user_id=member_id).update({"created_by_user_id": None})
+    Team.query.filter_by(coach_id=member_id).update({"coach_id": None})
+    Channel.query.filter_by(created_by_user_id=member_id).update({"created_by_user_id": None})
+    AIFeedback.query.filter_by(created_by_user_id=member_id).update({"created_by_user_id": None})
+    TeamMatchSummary.query.filter_by(created_by_user_id=member_id).update({"created_by_user_id": None})
+
     db.session.delete(member)
     db.session.commit()
 

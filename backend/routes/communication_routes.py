@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 
 from extensions import db
-from model import Booking, Channel, ChannelMembership, Match, Message, NotificationDismissal, Team, User
+from model import AttendanceResponse, Booking, Channel, ChannelMembership, Match, Message, NotificationDismissal, Team, User
 from services.access_control import (
     ROLE_COACH,
     ROLE_MANAGER,
@@ -215,7 +215,22 @@ def serialize_channel(channel, current_user):
     }
 
 
-def serialize_message(message):
+def serialize_message(message, current_user_id=None):
+    is_event_poll = message.attachment_type == "event_poll"
+    attendance_counts = None
+    user_response = None
+
+    if is_event_poll:
+        responses = message.attendance_responses
+        attendance_counts = {
+            "ATTENDING": sum(1 for r in responses if r.status == "ATTENDING"),
+            "NOT_ATTENDING": sum(1 for r in responses if r.status == "NOT_ATTENDING"),
+            "TENTATIVE": sum(1 for r in responses if r.status == "TENTATIVE"),
+        }
+        if current_user_id is not None:
+            user_r = next((r for r in responses if r.user_id == current_user_id), None)
+            user_response = user_r.status if user_r else None
+
     return {
         "id": message.id,
         "channelId": message.channel_id,
@@ -224,6 +239,9 @@ def serialize_message(message):
         "content": message.content,
         "attachmentType": message.attachment_type,
         "isPinned": message.is_pinned,
+        "isEventPoll": is_event_poll,
+        "attendanceCounts": attendance_counts,
+        "userResponse": user_response,
         "createdAt": message.created_at.isoformat() if message.created_at else None,
     }
 
@@ -485,7 +503,7 @@ def list_messages(channel_id):
     messages = Message.query.filter_by(channel_id=channel_id).order_by(Message.created_at.asc(), Message.id.asc()).all()
     current_user.last_active_at = now_utc()
     db.session.commit()
-    return jsonify([serialize_message(message) for message in messages])
+    return jsonify([serialize_message(message, current_user_id=current_user.id) for message in messages])
 
 
 @communication_bp.post("/channels/<int:channel_id>/messages")
@@ -511,6 +529,10 @@ def post_message(channel_id):
     if is_alert and role not in {ROLE_MANAGER, ROLE_COACH}:
         return jsonify({"error": "Only managers and coaches can send alerts"}), 403
 
+    is_event_poll = payload.get("attachmentType") == "event_poll"
+    if is_event_poll and role not in {ROLE_MANAGER, ROLE_COACH}:
+        return jsonify({"error": "Only managers and coaches can create event polls"}), 403
+
     message = Message(
         channel_id=channel_id,
         sender_id=current_user.id,
@@ -519,13 +541,44 @@ def post_message(channel_id):
         is_pinned=bool(payload.get("isPinned", False)) if can_pin else False,
     )
 
-    if is_alert:
+    if is_alert or is_event_poll:
         message.is_pinned = True
 
     db.session.add(message)
     db.session.commit()
 
-    return jsonify(serialize_message(message)), 201
+    return jsonify(serialize_message(message, current_user_id=current_user.id)), 201
+
+
+@communication_bp.post("/attendance")
+@jwt_required()
+def record_attendance():
+    current_user, error = current_user_or_error(ROLE_MANAGER, ROLE_COACH, ROLE_PLAYER)
+    if error:
+        return error
+
+    payload = request.get_json(silent=True) or {}
+    message_id = payload.get("messageId")
+    status = (payload.get("status") or "").upper()
+
+    if not message_id:
+        return jsonify({"error": "messageId is required"}), 400
+
+    if status not in {"ATTENDING", "NOT_ATTENDING", "TENTATIVE"}:
+        return jsonify({"error": "status must be ATTENDING, NOT_ATTENDING, or TENTATIVE"}), 400
+
+    message = Message.query.get_or_404(int(message_id))
+    if message.attachment_type != "event_poll":
+        return jsonify({"error": "This message is not an event poll"}), 400
+
+    existing = AttendanceResponse.query.filter_by(message_id=message.id, user_id=current_user.id).first()
+    if existing:
+        existing.status = status
+    else:
+        db.session.add(AttendanceResponse(message_id=message.id, user_id=current_user.id, status=status))
+
+    db.session.commit()
+    return jsonify({"messageId": message.id, "status": status})
 
 
 @communication_bp.post("/notifications/dismiss")

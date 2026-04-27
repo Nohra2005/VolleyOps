@@ -52,6 +52,23 @@ class Message(db.Model):
     sender = db.relationship("User", backref=db.backref("messages", lazy=True, cascade="all, delete-orphan"))
 
 
+class AttendanceResponse(db.Model):
+    __tablename__ = "attendance_response"
+    __table_args__ = (
+        db.UniqueConstraint("message_id", "user_id", name="uq_attendance_message_user"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, db.ForeignKey("message.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    status = db.Column(db.String(20), nullable=False)  # ATTENDING, NOT_ATTENDING, TENTATIVE
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    message = db.relationship("Message", backref=db.backref("attendance_responses", lazy=True, cascade="all, delete-orphan"))
+    user = db.relationship("User", backref=db.backref("attendance_responses", lazy=True))
+
+
 class NotificationDismissal(db.Model):
     __tablename__ = "notification_dismissal"
     __table_args__ = (

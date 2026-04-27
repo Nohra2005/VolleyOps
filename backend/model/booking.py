@@ -35,9 +35,9 @@ class Booking(db.Model):
     
     # FIXED: Defined only once, explicitly linking to the foreign key column with the cascade fix
     created_by = db.relationship(
-        "User", 
+        "User",
         foreign_keys=[created_by_user_id],
-        backref=db.backref("created_bookings", lazy=True, cascade="all, delete-orphan")
+        backref=db.backref("created_bookings", lazy=True),
     )
 
 
