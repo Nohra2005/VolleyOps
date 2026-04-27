@@ -1,6 +1,14 @@
+// Grab the backend URL from Docker environment, or default to empty string 
+// (empty string keeps it working via Vite proxy when running locally outside Docker)
+const BASE_URL = 'http://localhost:5000';
+
 export async function apiFetch(path, options = {}) {
   const { token = '', headers = {}, ...fetchOptions } = options;
-  const response = await fetch(path, {
+  
+  // Prepend the BASE_URL to the path
+  const url = path.startsWith('http') ? path : `${BASE_URL}${path}`;
+
+  const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
