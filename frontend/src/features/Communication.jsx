@@ -25,6 +25,12 @@ const ROLE_LABEL = {
   [ROLES.PLAYER]: 'Player',
 };
 
+const ATTENDANCE_OPTIONS = [
+  { status: 'ATTENDING', label: 'Attending', shortLabel: 'Yes', color: '#22c55e' },
+  { status: 'NOT_ATTENDING', label: 'Not Attending', shortLabel: 'No', color: '#ef4444' },
+  { status: 'TENTATIVE', label: 'Tentative', shortLabel: 'Maybe', color: '#f59e0b' },
+];
+
 const formatDateTime = (value) => {
   if (!value) {
     return '';
@@ -475,31 +481,21 @@ export default function Communication() {
                 </div>
 
                 {message.isEventPoll && (
-                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-                    <p style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '8px' }}>
-                      Will you attend?
-                    </p>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {[
-                        { status: 'ATTENDING', label: '✓ Attending', color: '#22c55e' },
-                        { status: 'NOT_ATTENDING', label: '✗ Not Attending', color: '#ef4444' },
-                        { status: 'TENTATIVE', label: '~ Tentative', color: '#f59e0b' },
-                      ].map(({ status, label, color }) => {
+                  <div className="attendance-poll">
+                    <p className="attendance-question">Will you attend?</p>
+                    <div className="attendance-actions">
+                      {ATTENDANCE_OPTIONS.map(({ status, label, color }) => {
                         const isSelected = message.userResponse === status;
                         return (
                           <button
                             key={status}
+                            type="button"
+                            className="attendance-choice"
                             onClick={() => recordAttendance(message.id, status)}
                             style={{
-                              padding: '5px 12px',
-                              borderRadius: '20px',
                               border: `2px solid ${color}`,
                               background: isSelected ? color : 'transparent',
                               color: isSelected ? 'white' : color,
-                              fontWeight: 700,
-                              fontSize: '12px',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s',
                             }}
                           >
                             {label}
@@ -508,11 +504,45 @@ export default function Communication() {
                       })}
                     </div>
                     {message.attendanceCounts && (
-                      <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-                        {message.attendanceCounts.ATTENDING} attending ·{' '}
-                        {message.attendanceCounts.NOT_ATTENDING} not attending ·{' '}
+                      <p className="attendance-counts">
+                        {message.attendanceCounts.ATTENDING} attending |{' '}
+                        {message.attendanceCounts.NOT_ATTENDING} not attending |{' '}
                         {message.attendanceCounts.TENTATIVE} tentative
                       </p>
+                    )}
+                    {Array.isArray(message.attendanceResponses) && (
+                      <div className="attendance-roster">
+                        {ATTENDANCE_OPTIONS.map(({ status, shortLabel }) => {
+                          const responders = message.attendanceResponses.filter((item) => item.status === status);
+                          return (
+                            <div className="attendance-group" key={status}>
+                              <span className={`attendance-status status-${status.toLowerCase()}`}>{shortLabel}</span>
+                              <div className="attendance-names">
+                                {responders.length === 0 ? (
+                                  <span className="attendance-muted">No responses</span>
+                                ) : responders.map((response) => (
+                                  <span className="attendance-person" key={`${message.id}-${response.userId}`}>
+                                    {response.name}
+                                    {response.position ? <small>{response.position}</small> : null}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {message.attendancePending?.length > 0 && (
+                          <div className="attendance-group pending">
+                            <span className="attendance-status status-pending">Pending</span>
+                            <div className="attendance-names">
+                              {message.attendancePending.map((member) => (
+                                <span className="attendance-person muted" key={`${message.id}-pending-${member.userId}`}>
+                                  {member.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

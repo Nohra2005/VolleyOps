@@ -215,10 +215,26 @@ def serialize_channel(channel, current_user):
     }
 
 
-def serialize_message(message, current_user_id=None):
+def serialize_attendance_response(response):
+    user = response.user
+    return {
+        "userId": response.user_id,
+        "name": user.full_name if user else "Unknown user",
+        "role": normalize_role(user.role) if user else "",
+        "team": user.team.name if user and user.team else "",
+        "position": user.position if user else "",
+        "status": response.status,
+        "updatedAt": response.updated_at.isoformat() if response.updated_at else None,
+    }
+
+
+def serialize_message(message, current_user=None):
     is_event_poll = message.attachment_type == "event_poll"
     attendance_counts = None
+    attendance_responses = None
+    attendance_pending = None
     user_response = None
+    current_user_id = current_user.id if current_user else None
 
     if is_event_poll:
         responses = message.attendance_responses
@@ -231,6 +247,34 @@ def serialize_message(message, current_user_id=None):
             user_r = next((r for r in responses if r.user_id == current_user_id), None)
             user_response = user_r.status if user_r else None
 
+        if current_user and normalize_role(current_user.role) in {ROLE_MANAGER, ROLE_COACH}:
+            responded_user_ids = {response.user_id for response in responses}
+            channel_members = sorted(
+                (membership.user for membership in message.channel.memberships if membership.user),
+                key=lambda user: user.full_name.lower(),
+            )
+            attendance_responses = [
+                serialize_attendance_response(response)
+                for response in sorted(
+                    responses,
+                    key=lambda response: (
+                        response.status or "",
+                        response.user.full_name.lower() if response.user else "",
+                    ),
+                )
+            ]
+            attendance_pending = [
+                {
+                    "userId": member.id,
+                    "name": member.full_name,
+                    "role": normalize_role(member.role),
+                    "team": member.team.name if member.team else "",
+                    "position": member.position or "",
+                }
+                for member in channel_members
+                if member.id not in responded_user_ids
+            ]
+
     return {
         "id": message.id,
         "channelId": message.channel_id,
@@ -241,6 +285,8 @@ def serialize_message(message, current_user_id=None):
         "isPinned": message.is_pinned,
         "isEventPoll": is_event_poll,
         "attendanceCounts": attendance_counts,
+        "attendanceResponses": attendance_responses,
+        "attendancePending": attendance_pending,
         "userResponse": user_response,
         "createdAt": message.created_at.isoformat() if message.created_at else None,
     }
@@ -503,7 +549,7 @@ def list_messages(channel_id):
     messages = Message.query.filter_by(channel_id=channel_id).order_by(Message.created_at.asc(), Message.id.asc()).all()
     current_user.last_active_at = now_utc()
     db.session.commit()
-    return jsonify([serialize_message(message, current_user_id=current_user.id) for message in messages])
+    return jsonify([serialize_message(message, current_user=current_user) for message in messages])
 
 
 @communication_bp.post("/channels/<int:channel_id>/messages")
@@ -547,7 +593,7 @@ def post_message(channel_id):
     db.session.add(message)
     db.session.commit()
 
-    return jsonify(serialize_message(message, current_user_id=current_user.id)), 201
+    return jsonify(serialize_message(message, current_user=current_user)), 201
 
 
 @communication_bp.post("/attendance")

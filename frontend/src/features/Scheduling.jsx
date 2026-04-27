@@ -156,7 +156,6 @@ export default function Scheduling() {
     court: 'Court 1',
     bookingDate: getDefaultCreateDate(),
     recurrenceStartDate: getDefaultCreateDate(),
-    notifyTeam: false,
   });
 
   const [deleteModal, setDeleteModal] = useState({
@@ -244,7 +243,6 @@ export default function Scheduling() {
       court: fallbackCourt,
       bookingDate: firstDay.iso,
       recurrenceStartDate: firstDay.iso,
-      notifyTeam: false,
     };
   };
 
@@ -800,7 +798,7 @@ export default function Scheduling() {
           color: teamColor,
           is_recurring: formData.isRecurring,
           anchor_date: formData.isRecurring ? formData.recurrenceStartDate : formData.bookingDate,
-          notify_team: formData.notifyTeam,
+          notify_team: false,
         }),
       });
 
@@ -1501,19 +1499,6 @@ export default function Scheduling() {
                   }
                 />
                 <label htmlFor="recurring">Repeat weekly</label>
-              </div>
-
-              <div className="notify-row">
-                <label className="notify-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={formData.notifyTeam}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notifyTeam: e.target.checked })
-                    }
-                  />
-                  <span>Notify team members of new booking</span>
-                </label>
               </div>
 
               <div className="modal-actions sticky-modal-actions">

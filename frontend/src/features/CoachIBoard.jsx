@@ -257,6 +257,12 @@ const clonePlay = (play) => ({
   })),
 });
 
+const renumberFrames = (frames = []) =>
+  frames.map((frame, index) => ({
+    ...frame,
+    name: `Frame ${index + 1}`,
+  }));
+
 const normalizePlay = (play) => ({
   id: play.id || uid(),
   serverId: play.serverId || (Number.isInteger(play.id) ? play.id : null),
@@ -268,14 +274,14 @@ const normalizePlay = (play) => ({
   lineup: play.lineup || play.lineup_json || { ...DEFAULT_LINEUP },
   annotations: play.annotations || play.drawings || [],
   highlights: play.highlights || [],
-  frames: play.frames || [
+  frames: renumberFrames(play.frames || [
     {
       id: uid(),
       name: 'Frame 1',
       lineup: play.lineup || { ...DEFAULT_LINEUP },
       drawings: play.annotations || play.drawings || [],
     },
-  ],
+  ]),
 });
 
 const readStoredBoard = () => {
@@ -302,6 +308,7 @@ export default function CoachIBoard() {
   const user = useUser();
   const courtRef = useRef(null);
   const playTimer = useRef(null);
+  const fadeTimer = useRef(null);
   const [storedBoard] = useState(readStoredBoard);
 
   const [plays, setPlays] = useState(storedBoard.plays);
@@ -315,6 +322,8 @@ export default function CoachIBoard() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [apiStatus, setApiStatus] = useState('Local mode');
   const [error, setError] = useState('');
+  const [visibleDrawings, setVisibleDrawings] = useState([]);
+  const [isFadingDrawings, setIsFadingDrawings] = useState(false);
 
   const selectedPlay = useMemo(
     () => plays.find((play) => String(play.id) === String(selectedPlayId)) || plays[0],
@@ -377,6 +386,18 @@ export default function CoachIBoard() {
 
     return () => window.clearTimeout(playTimer.current);
   }, [isPlaying, selectedFrameIndex, frames.length, selectedPlay?.playbackSpeed]);
+
+  useEffect(() => {
+    setIsFadingDrawings(true);
+    window.clearTimeout(fadeTimer.current);
+
+    fadeTimer.current = window.setTimeout(() => {
+      setVisibleDrawings(selectedDrawings);
+      window.requestAnimationFrame(() => setIsFadingDrawings(false));
+    }, 180);
+
+    return () => window.clearTimeout(fadeTimer.current);
+  }, [selectedDrawings]);
 
   const updateSelectedPlay = (updater) => {
     setPlays((currentPlays) =>
@@ -499,7 +520,7 @@ export default function CoachIBoard() {
 
       return {
         ...play,
-        frames: [...frames, nextFrame],
+        frames: renumberFrames([...frames, nextFrame]),
       };
     });
     setSelectedFrameIndex(frames.length);
@@ -518,7 +539,7 @@ export default function CoachIBoard() {
       const nextFrames = [...frames];
       nextFrames.splice(selectedFrameIndex + 1, 0, duplicated);
 
-      return { ...play, frames: nextFrames };
+      return { ...play, frames: renumberFrames(nextFrames) };
     });
 
     setSelectedFrameIndex((index) => index + 1);
@@ -531,7 +552,7 @@ export default function CoachIBoard() {
     }
 
     updateSelectedPlay((play) => {
-      const nextFrames = frames.filter((_, index) => index !== selectedFrameIndex);
+      const nextFrames = renumberFrames(frames.filter((_, index) => index !== selectedFrameIndex));
       return {
         ...play,
         frames: nextFrames,
@@ -700,6 +721,7 @@ export default function CoachIBoard() {
   };
 
   const selectedPreset = PRESET_ANIMATIONS.find((preset) => preset.id === selectedPresetId);
+  const frameTransitionMs = Math.round(Math.max(280, Math.min(760, 720 / Number(selectedPlay?.playbackSpeed || 1))));
 
   return (
     <div className="iboard-page">
@@ -878,28 +900,23 @@ export default function CoachIBoard() {
                 }}
               >
                 <span>{index + 1}</span>
-                {frame.name || `Frame ${index + 1}`}
+                {`Frame ${index + 1}`}
               </button>
             ))}
           </div>
         </section>
 
         <section className="court-shell">
-          <div className="court-instructions">
-            <span><strong>Preset dropdown:</strong> loads complete play sequences.</span>
-            <span><strong>Play:</strong> previews the selected sequence frame by frame.</span>
-            <span><strong>Arrow mode:</strong> click and drag on the court to draw movement.</span>
-          </div>
-
           <div
             ref={courtRef}
             className={`volleyball-court ${tool === 'arrow' ? 'arrow-mode' : ''}`}
+            style={{ '--frame-transition': `${frameTransitionMs}ms` }}
             onMouseDown={handleCourtPointerDown}
             onMouseMove={handleCourtPointerMove}
             onMouseUp={finishArrow}
             onMouseLeave={() => setDrawingDraft(null)}
           >
-            <svg className="court-drawings" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <svg className={`court-drawings ${isFadingDrawings ? 'is-fading' : ''}`} viewBox="0 0 100 100" preserveAspectRatio="none">
               <defs>
                 {DRAWING_COLORS.map((color) => (
                   <marker key={color.value} id={`arrowhead-${color.value.replace('#', '')}`} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
@@ -908,9 +925,9 @@ export default function CoachIBoard() {
                 ))}
               </defs>
 
-              {selectedDrawings.map((drawing) => (
+              {visibleDrawings.map((drawing, index) => (
                 <line
-                  key={drawing.id}
+                  key={`drawing-${index}`}
                   x1={drawing.startX}
                   y1={drawing.startY}
                   x2={drawing.endX}
@@ -940,30 +957,36 @@ export default function CoachIBoard() {
             <div className="attack-line attack-line-bottom" />
             <div className="center-line" />
 
+            {SLOT_LAYOUT.map((slot) => (
+              <div
+                key={slot.id}
+                className="court-slot"
+                style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => handleSlotDrop(slot.id)}
+              >
+                <div className="slot-label">{slot.label}</div>
+              </div>
+            ))}
+
             {SLOT_LAYOUT.map((slot) => {
               const roleId = selectedLineup[slot.id];
               const role = getRoleById(roleId);
 
               return (
                 <div
-                  key={slot.id}
-                  className="court-slot"
+                  key={role?.id || `empty-${slot.id}`}
+                  className={`court-player-token ${!role ? 'empty' : ''} ${draggingTokenId === roleId ? 'dragging' : ''}`}
                   style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+                  draggable={Boolean(role) && tool === 'select'}
+                  onDragStart={() => role && handleRoleDragStart(role.id)}
+                  onDragEnd={handleRoleDragEnd}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={() => handleSlotDrop(slot.id)}
+                  title={role?.label || ''}
                 >
-                  <div className="slot-label">{slot.label}</div>
-
-                  <div
-                    className={`court-player-token ${draggingTokenId === roleId ? 'dragging' : ''}`}
-                    draggable={tool === 'select'}
-                    onDragStart={() => handleRoleDragStart(roleId)}
-                    onDragEnd={handleRoleDragEnd}
-                    title={role?.label || ''}
-                  >
-                    <span className="role-short">{role?.short}</span>
-                    <span className="role-label">{role?.label}</span>
-                  </div>
+                  <span className="role-short">{role?.short}</span>
+                  <span className="role-label">{role?.label}</span>
                 </div>
               );
             })}

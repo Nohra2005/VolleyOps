@@ -10,14 +10,16 @@
   --brand-soft: #e5ecff;
   --danger: #dc2626;
   --danger-soft: #fee2e2;
-  min-height: 100vh;
-  padding: 18px;
+  height: 100vh;
+  min-height: 0;
+  padding: 12px;
   background:
     radial-gradient(1200px 600px at 5% -10%, #e0fff8 0%, transparent 62%),
     radial-gradient(1100px 700px at 100% 0%, #dce7ff 0%, transparent 65%),
     linear-gradient(180deg, var(--bg-0), var(--bg-1));
   color: var(--ink);
   font-family: 'Manrope', sans-serif;
+  overflow: hidden;
 }
 
 .communication-anim-enter {
@@ -36,9 +38,9 @@
 }
 
 .communication-topbar {
-  border-radius: 22px;
-  padding: 16px 18px;
-  margin-bottom: 14px;
+  border-radius: 16px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -52,21 +54,22 @@
 }
 
 .brand-logo {
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   box-shadow: 0 8px 18px rgba(46, 91, 255, 0.16);
 }
 
 .communication-brand h1 {
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   font-family: 'Sora', sans-serif;
-  font-size: clamp(25px, 2.3vw, 35px);
+  font-size: clamp(22px, 2vw, 30px);
 }
 
 .communication-brand p {
   margin: 0;
   color: var(--muted);
+  font-size: 13px;
 }
 
 .communication-topbar-actions {
@@ -117,7 +120,7 @@
 }
 
 .communication-error {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   border: 1px solid #fecaca;
   border-radius: 12px;
   padding: 10px 12px;
@@ -130,18 +133,22 @@
 .communication-layout {
   display: grid;
   grid-template-columns: 320px 1fr 360px;
-  gap: 14px;
+  gap: 10px;
+  height: calc(100vh - 82px);
+  min-height: 0;
 }
 
 .channels-pane,
 .messages-pane,
 .notifications-pane {
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.5);
-  min-height: calc(100vh - 126px);
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 14px;
+  padding: 12px;
+  overflow: hidden;
 }
 
 .panel-title-row {
@@ -149,13 +156,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+  flex: 0 0 auto;
 }
 
 .panel-title-row h2 {
   margin: 0;
   font-family: 'Sora', sans-serif;
-  font-size: 27px;
+  font-size: 22px;
 }
 
 .panel-status {
@@ -171,10 +179,11 @@
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .channel-list {
-  max-height: 46vh;
+  flex: 1 1 auto;
   padding-right: 2px;
 }
 
@@ -182,7 +191,7 @@
 .message-card,
 .notification-card {
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 12px;
   background: linear-gradient(150deg, rgba(255, 255, 255, 0.84), rgba(245, 248, 255, 0.88));
   animation: fadeUp 0.35s ease both;
 }
@@ -190,7 +199,7 @@
 .channel-card {
   cursor: pointer;
   text-align: left;
-  padding: 10px 11px;
+  padding: 9px 10px;
   color: #1a2e52;
   transition: transform 0.16s ease, border-color 0.16s ease;
 }
@@ -274,14 +283,15 @@
 }
 
 .create-channel-card {
-  margin-top: 11px;
+  margin-top: 8px;
   border: 1px dashed #a8badf;
-  border-radius: 16px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(233, 241, 255, 0.65));
+  flex: 0 0 auto;
 }
 
 .create-channel-card h3 {
@@ -295,10 +305,10 @@
 .composer textarea,
 .composer select {
   border: 1px solid #c3cfe9;
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.9);
   color: #1f2e51;
-  padding: 9px 10px;
+  padding: 8px 10px;
   width: 100%;
   font-size: 13px;
   font-family: inherit;
@@ -354,7 +364,7 @@
 }
 
 .messages-pane {
-  gap: 8px;
+  gap: 6px;
 }
 
 .message-stream {
@@ -363,7 +373,7 @@
 }
 
 .message-card {
-  padding: 10px;
+  padding: 9px 10px;
 }
 
 .message-card.mine {
@@ -395,7 +405,7 @@
 .message-card p {
   margin: 0;
   white-space: pre-wrap;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .message-tags {
@@ -422,24 +432,131 @@
   color: #8a5100;
 }
 
+.attendance-poll {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.attendance-question {
+  margin: 0 0 7px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.attendance-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.attendance-choice {
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.attendance-counts {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.attendance-roster {
+  margin-top: 9px;
+  display: grid;
+  gap: 7px;
+}
+
+.attendance-group {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.attendance-status {
+  border-radius: 999px;
+  padding: 3px 7px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.status-attending {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-not_attending {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-tentative {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-pending {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.attendance-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.attendance-person,
+.attendance-muted {
+  border: 1px solid #d7e0f3;
+  border-radius: 999px;
+  background: #fff;
+  color: #24385f;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.attendance-person small {
+  margin-left: 5px;
+  color: #72809d;
+  font-weight: 700;
+}
+
+.attendance-person.muted,
+.attendance-muted {
+  color: #7a879f;
+  background: #f8fafc;
+}
+
 .composer {
   border-top: 1px solid var(--line);
-  padding-top: 10px;
+  padding-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  flex: 0 0 auto;
 }
 
 .composer textarea {
   resize: vertical;
-  min-height: 86px;
+  min-height: 58px;
+  max-height: 110px;
 }
 
 .composer-controls {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
 
 .composer-controls label {
@@ -456,7 +573,7 @@
 }
 
 .notification-card {
-  padding: 10px;
+  padding: 9px 10px;
 }
 
 .notification-top {
@@ -490,14 +607,15 @@
 }
 
 .notification-card h3 {
-  margin: 8px 0 5px;
-  font-size: 18px;
+  margin: 6px 0 4px;
+  font-size: 15px;
   font-family: 'Sora', sans-serif;
 }
 
 .notification-card p {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   color: #2c3e66;
+  font-size: 13px;
 }
 
 .notification-card time {
@@ -550,7 +668,8 @@
 
   .notifications-pane {
     grid-column: span 2;
-    min-height: 250px;
+    min-height: 0;
+    height: 230px;
   }
 }
 
@@ -562,11 +681,21 @@
 
   .communication-layout {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
   }
 
   .channels-pane,
   .messages-pane,
   .notifications-pane {
+    height: auto;
     min-height: auto;
+    max-height: none;
+  }
+
+  .communication-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
 }

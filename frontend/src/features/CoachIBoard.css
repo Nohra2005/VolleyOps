@@ -1,15 +1,17 @@
 * { box-sizing: border-box; }
 
 .iboard-page {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   background: #f8fafc;
   color: #0f172a;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
 }
 
 .iboard-sidebar {
   width: 380px;
+  height: 100vh;
   padding: 24px;
   background: #ffffff;
   border-right: 1px solid #e2e8f0;
@@ -17,7 +19,7 @@
   flex-direction: column;
   gap: 18px;
   overflow-y: auto;
-  max-height: 100vh;
+  min-height: 0;
 }
 
 .iboard-brand {
@@ -294,8 +296,7 @@
   gap: 10px;
 }
 
-.role-token,
-.court-player-token {
+.role-token {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -345,11 +346,15 @@
 
 .iboard-main {
   flex: 1;
-  padding: 28px 32px;
+  height: 100vh;
+  padding: 24px 28px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .iboard-topbar {
@@ -481,10 +486,11 @@
 }
 
 .court-shell {
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
+  min-height: 0;
 }
 
 .court-instructions {
@@ -497,12 +503,15 @@
   padding: 14px 18px;
   font-size: 14px;
   color: #334155;
+  flex: 0 0 auto;
 }
 
 .volleyball-court {
   position: relative;
-  flex: 1;
-  min-height: 620px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  min-height: 820px;
+  max-height: 1100px;
   border-radius: 28px;
   background:
     linear-gradient(to bottom, transparent 49.5%, #ffffff 49.5%, #ffffff 50.5%, transparent 50.5%),
@@ -524,6 +533,16 @@
   height: 100%;
   z-index: 1;
   pointer-events: none;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.court-drawings.is-fading {
+  opacity: 0;
+}
+
+.court-drawings line {
+  animation: arrowFadeIn 220ms ease both;
 }
 
 .center-line {
@@ -557,10 +576,18 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  transition: 0.25s ease;
+  width: 140px;
+  height: 152px;
+  justify-content: flex-start;
+  padding-top: 0;
+  pointer-events: none;
 }
 
 .slot-label {
+  position: absolute;
+  top: -34px;
+  left: 50%;
+  transform: translateX(-50%);
   background: rgba(15, 23, 42, 0.82);
   color: #ffffff;
   border-radius: 999px;
@@ -569,31 +596,100 @@
   font-weight: 900;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .court-player-token {
-  min-width: 155px;
-  justify-content: flex-start;
-  background: rgba(255,255,255,0.97);
-  border: 2px solid #dbe4ff;
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  width: 96px;
+  height: 96px;
+  min-width: 0;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 50%;
+  background: #6b7bb8;
+  border: 3px solid rgba(255, 255, 255, 0.92);
   cursor: grab;
+  box-shadow: 0 14px 28px rgba(107, 123, 184, 0.28);
+  padding: 10px;
+  text-align: center;
+  font-weight: 900;
+  user-select: none;
+  transition:
+    left var(--frame-transition, 520ms) cubic-bezier(0.22, 1, 0.36, 1),
+    top var(--frame-transition, 520ms) cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.court-player-token.empty {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: #dbe4ff;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.court-player-token .role-short {
+  min-width: 0;
+  background: transparent;
+  color: #ffffff;
+  border-radius: 0;
+  padding: 0;
+  font-size: 21px;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.court-player-token.empty .role-short {
+  color: transparent;
+}
+
+.court-player-token .role-label {
+  display: none;
 }
 
 .court-player-token.dragging {
   opacity: 0.45;
 }
 
+@keyframes arrowFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @media (max-width: 1100px) {
   .iboard-page {
     flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
 
   .iboard-sidebar {
     width: 100%;
+    height: auto;
     max-height: none;
     border-right: none;
     border-bottom: 1px solid #e2e8f0;
+  }
+
+  .iboard-main {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .court-shell {
+    overflow: visible;
   }
 
   .iboard-summary-row {
@@ -607,9 +703,21 @@
 
   .volleyball-court {
     min-height: 520px;
+    max-height: none;
+    aspect-ratio: 4 / 3;
   }
 
   .court-player-token {
-    min-width: 125px;
+    width: 82px;
+    height: 82px;
+  }
+
+  .court-player-token .role-short {
+    font-size: 15px;
+  }
+
+  .court-player-token .role-label {
+    max-width: 66px;
+    font-size: 9px;
   }
 }
