@@ -37,6 +37,13 @@ def as_float(value, default=0):
         return default
 
 
+def numeric_or_default(value, default=0.0):
+    try:
+        return float(value if value is not None else default)
+    except (TypeError, ValueError):
+        return float(default)
+
+
 def serialize_feedback(feedback):
     if not feedback:
         return None
@@ -207,7 +214,11 @@ def list_matches():
     query = Match.query
 
     if request.args.get("teamId"):
-        query = query.filter(Match.team_id == int(request.args["teamId"]))
+        try:
+            team_id = int(request.args["teamId"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "teamId must be an integer"}), 400
+        query = query.filter(Match.team_id == team_id)
 
     matches = query.order_by(Match.played_on.desc()).all()
     return jsonify([serialize_match(match) for match in matches])
@@ -358,10 +369,17 @@ def player_stats(player_id):
     latest = serialized_stats[0] if serialized_stats else None
     previous = serialized_stats[1] if len(serialized_stats) > 1 else None
 
+    latest_score = numeric_or_default((latest or {}).get("performanceScore"), 0)
+    previous_score = numeric_or_default((previous or {}).get("performanceScore"), 0)
+    latest_hit = numeric_or_default((latest or {}).get("hittingPercentage"), 0)
+    previous_hit = numeric_or_default((previous or {}).get("hittingPercentage"), 0)
+    latest_kills = int(numeric_or_default((latest or {}).get("kills"), 0))
+    previous_kills = int(numeric_or_default((previous or {}).get("kills"), 0))
+
     trend = {
-        "performanceScoreDelta": 0 if not latest or not previous else round(latest["performanceScore"] - previous["performanceScore"], 2),
-        "hittingPercentageDelta": 0 if not latest or not previous else round(latest["hittingPercentage"] - previous["hittingPercentage"], 3),
-        "killsDelta": 0 if not latest or not previous else latest["kills"] - previous["kills"],
+        "performanceScoreDelta": 0 if not latest or not previous else round(latest_score - previous_score, 2),
+        "hittingPercentageDelta": 0 if not latest or not previous else round(latest_hit - previous_hit, 3),
+        "killsDelta": 0 if not latest or not previous else latest_kills - previous_kills,
     }
 
     team_average = team_average_for_team(player.team_id) if player.team_id else 0

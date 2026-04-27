@@ -567,9 +567,16 @@ def record_attendance():
     if status not in {"ATTENDING", "NOT_ATTENDING", "TENTATIVE"}:
         return jsonify({"error": "status must be ATTENDING, NOT_ATTENDING, or TENTATIVE"}), 400
 
-    message = Message.query.get_or_404(int(message_id))
+    try:
+        message_id = int(message_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "messageId must be an integer"}), 400
+
+    message = Message.query.get_or_404(message_id)
     if message.attachment_type != "event_poll":
         return jsonify({"error": "This message is not an event poll"}), 400
+    if not user_has_channel_access(current_user, message.channel):
+        return jsonify({"error": "You do not have access to this event poll"}), 403
 
     existing = AttendanceResponse.query.filter_by(message_id=message.id, user_id=current_user.id).first()
     if existing:
@@ -589,7 +596,7 @@ def dismiss_notification():
         return error
 
     payload = request.get_json(silent=True) or {}
-    notification_id = (payload.get("notificationId") or "").strip()
+    notification_id = (payload.get("notificationId") or payload.get("notificationKey") or "").strip()
     if not notification_id:
         return jsonify({"error": "notificationId is required"}), 400
 

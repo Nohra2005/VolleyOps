@@ -303,8 +303,11 @@ def delete_member(member_id):
     from model.stats import AIFeedback, Match, PlayerMatchStat, TeamMatchSummary
     from model.communication import Channel
     from model.booking import Booking
+    from model.play import Play
     from model.reference import Team
 
+    # Remove dependent records tied to the member before deleting the user row.
+    Play.query.filter_by(owner_id=member_id).delete()
     PlayerMatchStat.query.filter_by(player_id=member_id).delete()
     AttendanceResponse.query.filter_by(user_id=member_id).delete()
     Booking.query.filter_by(created_by_user_id=member_id).update({"created_by_user_id": None})
