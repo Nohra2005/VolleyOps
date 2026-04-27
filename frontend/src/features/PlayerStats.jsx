@@ -32,8 +32,13 @@ export default function PlayerStats() {
       try {
         setLoading(true);
         const data = await apiFetch(`/api/stats/players/${id}`, { token: user.token });
-        // Ensure data is always an array to prevent crashes
-        setStats(Array.isArray(data) ? data : []);
+        if (Array.isArray(data)) {
+          setStats(data);
+        } else if (data && Array.isArray(data.stats)) {
+          setStats(data.stats);
+        } else {
+          setStats([]);
+        }
       } catch (err) {
         setError(err.message);
       } finally {

@@ -64,6 +64,7 @@ export default function Communication() {
   const [messageForm, setMessageForm] = useState({
     content: '',
     isAlert: false,
+    isEventPoll: false,
     attachmentType: 'alert_general',
     isPinned: false,
   });
@@ -161,7 +162,10 @@ export default function Communication() {
         isPinned: Boolean(messageForm.isPinned),
       };
 
-      if (messageForm.isAlert) {
+      if (messageForm.isEventPoll) {
+        payload.attachmentType = 'event_poll';
+        payload.isPinned = true;
+      } else if (messageForm.isAlert) {
         payload.isAlert = true;
         payload.attachmentType = messageForm.attachmentType;
       }
@@ -175,6 +179,7 @@ export default function Communication() {
       setMessageForm((prev) => ({
         ...prev,
         content: '',
+        isEventPoll: false,
         isPinned: prev.isAlert ? true : false,
       }));
 
@@ -286,6 +291,19 @@ export default function Communication() {
       setError(err.message);
     } finally {
       setDismissingNotificationId('');
+    }
+  };
+
+  const recordAttendance = async (messageId, status) => {
+    try {
+      await apiFetch('/api/communications/attendance', {
+        token: user.token,
+        method: 'POST',
+        body: JSON.stringify({ messageId, status }),
+      });
+      await loadMessages(selectedChannelId);
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -451,9 +469,53 @@ export default function Communication() {
                 </div>
                 <p>{message.content}</p>
                 <div className="message-tags">
-                  {message.isPinned && <span className="tag tag-pinned">Pinned</span>}
-                  {message.attachmentType && <span className="tag">{message.attachmentType}</span>}
+                  {message.isPinned && !message.isEventPoll && <span className="tag tag-pinned">Pinned</span>}
+                  {message.isEventPoll && <span className="tag" style={{ background: '#6b7bb8', color: 'white' }}>Event Poll</span>}
+                  {message.attachmentType && !message.isEventPoll && <span className="tag">{message.attachmentType}</span>}
                 </div>
+
+                {message.isEventPoll && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                    <p style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '8px' }}>
+                      Will you attend?
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {[
+                        { status: 'ATTENDING', label: '✓ Attending', color: '#22c55e' },
+                        { status: 'NOT_ATTENDING', label: '✗ Not Attending', color: '#ef4444' },
+                        { status: 'TENTATIVE', label: '~ Tentative', color: '#f59e0b' },
+                      ].map(({ status, label, color }) => {
+                        const isSelected = message.userResponse === status;
+                        return (
+                          <button
+                            key={status}
+                            onClick={() => recordAttendance(message.id, status)}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '20px',
+                              border: `2px solid ${color}`,
+                              background: isSelected ? color : 'transparent',
+                              color: isSelected ? 'white' : color,
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {message.attendanceCounts && (
+                      <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
+                        {message.attendanceCounts.ATTENDING} attending ·{' '}
+                        {message.attendanceCounts.NOT_ATTENDING} not attending ·{' '}
+                        {message.attendanceCounts.TENTATIVE} tentative
+                      </p>
+                    )}
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -471,6 +533,22 @@ export default function Communication() {
                 <label>
                   <input
                     type="checkbox"
+                    checked={messageForm.isEventPoll}
+                    onChange={(event) =>
+                      setMessageForm((prev) => ({
+                        ...prev,
+                        isEventPoll: event.target.checked,
+                        isAlert: false,
+                      }))
+                    }
+                  />
+                  Event poll (attendance)
+                </label>
+              )}
+              {canSendAlert && !messageForm.isEventPoll && (
+                <label>
+                  <input
+                    type="checkbox"
                     checked={messageForm.isAlert}
                     onChange={(event) =>
                       setMessageForm((prev) => ({
@@ -483,7 +561,7 @@ export default function Communication() {
                   Send as alert
                 </label>
               )}
-              {messageForm.isAlert && canSendAlert && (
+              {messageForm.isAlert && !messageForm.isEventPoll && canSendAlert && (
                 <select
                   value={messageForm.attachmentType}
                   onChange={(event) => setMessageForm((prev) => ({ ...prev, attachmentType: event.target.value }))}
@@ -495,7 +573,7 @@ export default function Communication() {
                   ))}
                 </select>
               )}
-              {canPinMessage && (
+              {canPinMessage && !messageForm.isEventPoll && (
                 <label>
                   <input
                     type="checkbox"
@@ -507,7 +585,7 @@ export default function Communication() {
                 </label>
               )}
               <button type="submit" disabled={isSending || !selectedChannelId || !messageForm.content.trim()}>
-                {isSending ? 'Sending...' : 'Send'}
+                {isSending ? 'Sending...' : messageForm.isEventPoll ? 'Post Event Poll' : 'Send'}
               </button>
             </div>
           </form>

@@ -9,6 +9,7 @@ import Scheduling from './features/Scheduling';
 import ClubManagement from './features/ClubManagement';
 import PlayerProfile from './features/PlayerProfile';
 import PlayerStats from './features/PlayerStats';
+import StatsHub from './features/StatsHub';
 import CoachIBoard from './features/CoachIBoard';
 import AdminUsers from './features/AdminUsers';
 import Communication from './features/Communication';
@@ -35,7 +36,7 @@ function AthleteStatsRedirect() {
     return <Navigate to={`/player-profile/${user.id}/stats`} replace />;
   }
 
-  return <Navigate to="/team-management" replace />;
+  return <Navigate to="/athlete-stats/hub" replace />;
 }
 
 export default function App() {
@@ -86,6 +87,15 @@ export default function App() {
             element={
               <RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH, ROLES.PLAYER]}>
                 <AthleteStatsRedirect />
+              </RequireAuth>
+            }
+          />
+
+          <Route
+            path="/athlete-stats/hub"
+            element={
+              <RequireAuth allowRoles={[ROLES.MANAGER, ROLES.COACH]}>
+                <StatsHub />
               </RequireAuth>
             }
           />
